@@ -1,0 +1,50 @@
+{
+  "summary": "Iteration 3 end-to-end verification. Backend: 30/30 pytest tests pass (25 existing + 5 new for iteration 3 additions: preparation_time_minutes settings field default=30, PUT persists, phone starts with +41, address contains '1006 Lausanne', order stores customer.postal_code). Frontend: all 15 requested UI checks pass — landing uses B&W pasta image (mdig6gfa), no 'Slow food' badge on logo card, no '62 anni di passione' badge on story, full address 'Av. William-Fraisse 1, 1006 Lausanne', phone '+41 79 706 39 66', CSS palette confirmed (brand=#7FA6A3, terracotta=#8FA3B0, terracotta-dark=#6E8494 — NO orange/red hues). OrderModePicker on /commander shows 4 button cards (takeaway/delivery/asap/custom); Programmer reveals 'Aujourd'hui' + 'Demain' chips; on /epicerie 8 day chips (today + 7). Delivery reveals postal-code input; empty postal → error 'Code postal suisse à 4 chiffres requis'. 'Demain' shows the tomorrow-warning banner. Product modal comment textarea placeholder is 'commentaire'. Footer has 'Commander' CTA (data-testid=footer-commander) linking to /panier + Contact link in Naviguer. /panier empty state renders with CTAs to /commander and /epicerie. /panier with items shows cart-section-restaurant + 'Passer commande' button which opens CheckoutModal. CheckoutModal contains 'dont TVA (2.6%) — incluse dans le prix' and 'Total ... TVA comprise'. Admin: owner login OK, Promotions tab select has only Pourcentage + Montant fixe (no BOGO). Settings tab has prep-time-input defaulting to 30. Backend also verified: postal_code roundtrip in orders + preparation_time_minutes update persists.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "CartContext (context/CartContext.js)",
+        "issue": "Cart is WIPED on page reload/refresh. Reproduction: add an item on /commander → navigate to /panier (works via SPA nav) → press F5 (browser reload). After reload, cart shows 'Votre panier est vide' AND localStorage.angel_cart_v1 is overwritten to '{\"restaurant\":[],\"epicerie\":[]}'. Root cause: two useEffect hooks race in CartProvider — the hydration effect (reads localStorage) calls setCart(saved) but the persistence effect (writes cart to localStorage) also fires on mount with the initial empty state closure and OVERWRITES localStorage before the loaded state re-renders it back. Impact: any user hard-reloading the site loses their entire cart (also happens after browser tab reopen). This becomes especially painful now that /panier is a dedicated page users may refresh.",
+        "selector": "N/A (state bug)",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dialogs (OrderModePicker, ProductModal, CheckoutModal)", "issues": ["Radix a11y warning still present: 'Missing Description or aria-describedby for DialogContent' on some modals. Already noted in iteration_1; low priority."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix cart-wipe-on-reload bug in /app/frontend/src/context/CartContext.js. Recommended fix (2 lines): switch to lazy useState initializers so localStorage is read synchronously BEFORE any useEffect fires. Example: const [cart, setCart] = useState(() => { try { const c = JSON.parse(localStorage.getItem(KEY) || 'null'); return c && typeof c === 'object' ? c : { restaurant: [], epicerie: [] }; } catch { return { restaurant: [], epicerie: [] }; } }); Same for mode. Then remove the hydration useEffect entirely. This eliminates the write-empty-before-read race.",
+    "(Optional) Add DialogDescription (or aria-describedby=undefined explicit ignore) on remaining Dialogs (checkout-modal, product-modal) to silence Radix a11y warnings."
+  ],
+  "critical_code_review_comments": [
+    "CartContext.js: race between hydration and persistence useEffect. Prefer lazy useState initializer for any state that persists via localStorage.",
+    "OrderModePicker.jsx line 63-69: today's time slots are correctly filtered by prepTime cutoff. During late testing (22:07 UTC) all today slots are filtered out — user sees 'Plus de créneaux disponibles ce jour. Choisissez un autre jour.' which is expected UX.",
+    "Cart.jsx uses window.confirm() for 'Vider ce panier?' — works but breaks the design system. Consider using a shadcn AlertDialog for consistency.",
+    "CheckoutModal.jsx: subtotal is displayed as 'Total' but VAT amount is not subtracted (VAT-inclusive pricing). The label 'TVA comprise' clarifies this correctly, but the numeric VAT amount CHF 0.32 in the middle line could confuse users. Consider adding a tooltip.",
+    "Admin.jsx: Promotions still uses a native <select> vs shadcn Select — inconsistent with the rest of the admin. Cosmetic.",
+    "server.py: SettingsUpdate model now has preparation_time_minutes (int) but no validation on range (e.g., 5-180). Not blocking; consider adding Field(ge=5, le=180)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (added 5 tests: preparation_time_minutes default/get/put, international phone, address includes postal code, order postal_code roundtrip)"
+  ],
+  "success_rate": {
+    "backend": "100% (30/30 pytest)",
+    "frontend": "94% (15/16 iteration-3 checks pass; 1 pre-existing cart-persistence bug found)"
+  },
+  "test_credentials": "Owner: AngelCED26 / CE26$Lucc. Staff: AnCED25 / 26$LuANG. From /app/memory/test_credentials.md.",
+  "seed_data_creation": "Test suite adds TEST_-prefixed customers (TEST_john, TEST_del, TEST_postal, TEST_alice) + one temporary TEST_Product created and deleted in the product CRUD test. Cumulative TEST_ orders remain in DB across iterations.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 3 done. Only outstanding issue is the CartContext localStorage race causing cart loss on reload. After main agent applies the useState initializer fix, verify: (a) Add item on /commander, then hard-reload (F5) on /panier — cart section must remain visible, (b) after fix, localStorage.getItem('angel_cart_v1') should NOT be reset to empty on reload. Backend regression suite at /app/backend/tests/backend_test.py covers 30 scenarios including iteration 3 additions; run with: pytest /app/backend/tests/backend_test.py -v.",
+  "rca of the issue": "BUG: Cart wiped on page refresh. RCA: /app/frontend/src/context/CartContext.js declares two useEffects. useEffect#1 (line 13-20, deps []) reads localStorage and calls setCart(saved). useEffect#2 (line 22, deps [cart]) writes cart to localStorage. After first mount both effects run in declaration order but BOTH use the same closure over the initial empty cart. Effect#1 schedules a state update via setCart(saved) but does NOT synchronously mutate `cart`. Effect#2, running next, sees the still-initial empty cart and writes it to localStorage — overwriting saved data. React then re-renders with the loaded state and effect#2 re-runs to restore correct data — but if the user visits a route that reads cart on first render (like /panier's Cart.jsx which computes `bothEmpty` immediately), they will briefly see 'Votre panier est vide' and, worse, if another tab reads localStorage during the empty window, it observes empty. Reproduction verified in this iteration. Mitigation: switch to lazy useState initializer so cart is loaded on first render before any effect fires, then keep only the persistence effect."
+}

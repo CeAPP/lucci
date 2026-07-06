@@ -44,7 +44,8 @@ export default function CheckoutModal({ open, onOpenChange, menuType, onSuccess 
         customer: {
           first_name: form.first_name, last_name: form.last_name,
           phone: form.phone, email: form.email,
-          address: form.address, marketing_opt_in: form.marketing_opt_in,
+          address: form.address, postal_code: mode?.postal_code || "",
+          marketing_opt_in: form.marketing_opt_in,
         },
         items: items.map(({ _uid, ...rest }) => rest),
         promo_code: form.promo_code || null,
@@ -77,14 +78,16 @@ export default function CheckoutModal({ open, onOpenChange, menuType, onSuccess 
                 <span>{CHF(it.line_total)}</span>
               </div>
             ))}
-            <div className="border-t border-ink/10 pt-2 flex justify-between text-muted2">
-              <span>Sous-total (TVA incluse)</span><span>{CHF(subtotal)}</span>
+            <div className="border-t border-ink/10 pt-2 flex justify-between">
+              <span>Sous-total</span><span>{CHF(subtotal)}</span>
             </div>
-            <div className="flex justify-between text-muted2 text-xs">
-              <span>Dont TVA ({(vatRate * 100).toFixed(1)}%)</span><span>{CHF(vatAmount)}</span>
+            <div className="flex justify-between text-xs text-muted2">
+              <span>dont TVA ({(vatRate * 100).toFixed(1)}%) — <strong>incluse dans le prix</strong></span>
+              <span>{CHF(vatAmount)}</span>
             </div>
-            <div className="flex justify-between font-display text-xl pt-2">
-              <span>Total</span><span className="text-brand">{CHF(subtotal)}</span>
+            <div className="flex justify-between font-display text-xl pt-2 border-t border-ink/10">
+              <span>Total <span className="text-[10px] tracking-widest uppercase text-muted2 ml-1">TVA comprise</span></span>
+              <span className="text-brand">{CHF(subtotal)}</span>
             </div>
           </div>
 

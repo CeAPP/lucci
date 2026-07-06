@@ -1,10 +1,13 @@
 import { Link } from "react-router-dom";
-import { Phone, Mail, MapPin } from "lucide-react";
+import { Phone, Mail, MapPin, ShoppingBag, ArrowRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
+import { useCart } from "@/context/CartContext";
 
 export default function Footer() {
   const [settings, setSettings] = useState({});
+  const { countFor } = useCart();
+  const totalCount = countFor("restaurant") + countFor("epicerie");
 
   useEffect(() => {
     api.get("/settings").then((r) => setSettings(r.data)).catch(() => {});
@@ -19,6 +22,17 @@ export default function Footer() {
             la qualità a discapito della quantità
           </p>
           <p className="text-xs text-cream/60 mt-3 tracking-widest uppercase">Farmacia Angelucci</p>
+
+          {/* Commander CTA */}
+          <Link to="/panier" data-testid="footer-commander"
+            className="mt-8 inline-flex items-center gap-3 bg-brand hover:bg-brand-hover text-cream px-6 py-3 text-[12px] tracking-[.2em] uppercase transition-colors">
+            <ShoppingBag size={16} strokeWidth={1.5} />
+            Commander
+            {totalCount > 0 && (
+              <span className="ml-1 bg-cream text-ink w-6 h-6 flex items-center justify-center text-xs">{totalCount}</span>
+            )}
+            <ArrowRight size={14} strokeWidth={1.5} />
+          </Link>
         </div>
 
         <div>
@@ -31,7 +45,7 @@ export default function Footer() {
             <li className="flex items-center gap-3">
               <Phone size={16} strokeWidth={1.5} />
               <a href={`tel:${(settings.phone || "").replace(/\s/g, "")}`} className="link-underline" data-testid="footer-phone">
-                {settings.phone || "079 706 39 66"}
+                {settings.phone || "+41 79 706 39 66"}
               </a>
             </li>
             <li className="flex items-center gap-3">

@@ -115,6 +115,7 @@ class OrderCustomer(BaseModel):
     email: EmailStr
     marketing_opt_in: bool = False
     address: str = ""  # for delivery
+    postal_code: str = ""  # for delivery
 
 
 class OrderCreate(BaseModel):
@@ -147,6 +148,7 @@ class SettingsUpdate(BaseModel):
     orders_enabled: Optional[bool] = None
     reservations_enabled: Optional[bool] = None
     grocery_lead_days: Optional[int] = None
+    preparation_time_minutes: Optional[int] = None
 
 
 class DayHours(BaseModel):

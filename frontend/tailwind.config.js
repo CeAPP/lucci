@@ -10,14 +10,14 @@ module.exports = {
       },
       colors: {
         brand: {
-          DEFAULT: "#7FA9A8",
+          DEFAULT: "#7FA6A3",
           hover: "#6C908F",
           light: "#A8C4C3",
         },
         terracotta: {
-          DEFAULT: "#C87456",
-          dark: "#A85B3F",
-          light: "#E8B5A0",
+          DEFAULT: "#8FA3B0",
+          dark: "#6E8494",
+          light: "#C7D3DB",
         },
         ochre: {
           DEFAULT: "#D4A24C",

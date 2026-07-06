@@ -332,7 +332,7 @@ function ProductModal({ product, addonGroups, onClose, onAdd }) {
 
             <div className="mb-6">
               <Label className="text-xs tracking-[.25em] uppercase mb-2 block">Commentaire</Label>
-              <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex: sans oignons"
+              <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="commentaire"
                 data-testid="product-note" className="bg-transparent border-ink/20 rounded-none focus-visible:ring-brand resize-none" rows={2} />
             </div>
 

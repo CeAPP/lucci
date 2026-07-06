@@ -13,10 +13,10 @@
 @tailwind utilities;
 
 :root {
-  --brand: #7FA9A8;
+  --brand: #7FA6A3;
   --brand-hover: #6C908F;
-  --terracotta: #C87456;
-  --terracotta-dark: #A85B3F;
+  --terracotta: #8FA3B0;
+  --terracotta-dark: #6E8494;
   --ochre: #D4A24C;
   --bg: #FDFBF7;
   --surface: #F5F2EA;

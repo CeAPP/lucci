@@ -71,6 +71,40 @@ class TestSettings:
         # restore
         requests.put(f"{API}/settings", headers=owner_headers, json={"vat_takeaway": orig["vat_takeaway"]})
 
+    # ---- Iteration 3: new fields ----
+    def test_settings_has_preparation_time_minutes(self):
+        r = requests.get(f"{API}/settings")
+        assert r.status_code == 200
+        s = r.json()
+        assert "preparation_time_minutes" in s, "preparation_time_minutes must be present in settings"
+        assert isinstance(s["preparation_time_minutes"], int)
+        assert s["preparation_time_minutes"] == 30  # default per iteration 3
+
+    def test_settings_default_phone_is_international(self):
+        r = requests.get(f"{API}/settings")
+        s = r.json()
+        # per iteration 3 the default is "+41 79 706 39 66"
+        assert s.get("phone", "").startswith("+41"), f"phone should start with +41, got: {s.get('phone')!r}"
+
+    def test_settings_address_includes_postal_code(self):
+        r = requests.get(f"{API}/settings")
+        s = r.json()
+        addr = s.get("address", "")
+        # Must contain postal code 1006 and city Lausanne
+        assert "1006" in addr, f"address must include postal code 1006: {addr!r}"
+        assert "Lausanne" in addr, f"address must include Lausanne: {addr!r}"
+
+    def test_update_preparation_time_minutes_persists(self, owner_headers):
+        orig = requests.get(f"{API}/settings").json()
+        r = requests.put(f"{API}/settings", headers=owner_headers, json={"preparation_time_minutes": 45})
+        assert r.status_code == 200, r.text
+        assert r.json()["preparation_time_minutes"] == 45
+        s = requests.get(f"{API}/settings").json()
+        assert s["preparation_time_minutes"] == 45
+        # restore
+        requests.put(f"{API}/settings", headers=owner_headers,
+                     json={"preparation_time_minutes": orig.get("preparation_time_minutes", 30)})
+
 
 # ---------- Auth ----------
 class TestAuth:
@@ -213,6 +247,38 @@ class TestOrders:
         assert r.status_code == 200
         emails = [e["email"] for e in r.json()]
         assert "TEST_john@example.com" in emails
+
+    # ---- Iteration 3: postal_code stored on order ----
+    def test_create_order_with_postal_code_persists(self):
+        p = self._get_restaurant_product()
+        payload = {
+            "menu_type": "restaurant",
+            "fulfillment_type": "delivery",
+            "pickup_time": "ASAP",
+            "customer": {
+                "first_name": "TEST_Postal",
+                "last_name": "Doe",
+                "phone": "+41791234567",
+                "email": "TEST_postal@example.com",
+                "marketing_opt_in": False,
+                "address": "Av. William-Fraisse 1",
+                "postal_code": "1006",
+            },
+            "items": [{
+                "product_id": p["id"],
+                "name": p["name"],
+                "quantity": 1,
+                "unit_price": p["price"],
+                "selected_addons": [],
+                "note": "",
+                "line_total": p["price"],
+            }],
+        }
+        r = requests.post(f"{API}/orders", json=payload)
+        assert r.status_code == 200, r.text
+        oid = r.json()["id"]
+        o = requests.get(f"{API}/orders/{oid}").json()
+        assert o["customer"].get("postal_code") == "1006", f"postal_code not persisted: {o['customer']!r}"
 
 
 # ---------- Reservations ----------

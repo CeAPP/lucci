@@ -21,12 +21,12 @@ export default function Header() {
   return (
     <header
       data-testid="site-header"
-      className="fixed top-0 left-0 right-0 z-50 bg-cream/95 backdrop-blur-xl border-b border-ink/10"
+      className="fixed top-0 left-0 right-0 z-50 bg-cream/95 backdrop-blur-xl border-b-2 border-terracotta"
     >
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 flex items-center justify-between h-20">
         <Link to="/" data-testid="header-logo" className="flex items-center gap-3 group">
           <img src={LOGO} alt="Angelucci's" className="h-14 w-14 object-contain" />
-          <span className="hidden sm:block font-display text-2xl tracking-[.2em] text-ink group-hover:text-brand transition-colors">
+          <span className="hidden sm:block font-display text-2xl tracking-[.2em] text-ink group-hover:text-terracotta transition-colors">
             ANGELUCCI'S
           </span>
         </Link>
@@ -39,7 +39,7 @@ export default function Header() {
               data-testid={`nav-${n.to.replace("/", "")}`}
               className={({ isActive }) =>
                 `text-[13px] tracking-[.15em] uppercase link-underline transition-colors ${
-                  isActive ? "text-brand" : "text-ink hover:text-brand"
+                  isActive ? "text-terracotta" : "text-ink hover:text-terracotta"
                 }`
               }
             >

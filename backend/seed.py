@@ -6,14 +6,15 @@ from datetime import datetime, timezone
 DEFAULT_SETTINGS = {
     "_id": "settings",
     "restaurant_name": "Farmacia Angelucci",
-    "phone": "079 706 39 66",
+    "phone": "+41 79 706 39 66",
     "email": "toni@angeluccis.com",
     "address": "Av. William-Fraisse 1, 1006 Lausanne",
     "vat_takeaway": 0.026,
     "vat_delivery": 0.081,
     "orders_enabled": True,
     "reservations_enabled": True,
-    "grocery_lead_days": 14,
+    "grocery_lead_days": 7,
+    "preparation_time_minutes": 30,
 }
 
 
@@ -44,6 +45,12 @@ async def seed_db(db):
     # Settings
     if not await db.settings.find_one({"_id": "settings"}):
         await db.settings.insert_one(DEFAULT_SETTINGS.copy())
+    else:
+        # Backfill any missing fields
+        existing = await db.settings.find_one({"_id": "settings"})
+        missing = {k: v for k, v in DEFAULT_SETTINGS.items() if k not in existing}
+        if missing:
+            await db.settings.update_one({"_id": "settings"}, {"$set": missing})
 
     # Schedules
     for kind in ["restaurant", "reservation", "epicerie"]:

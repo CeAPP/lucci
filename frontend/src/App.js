@@ -9,6 +9,7 @@ import Reservation from "@/pages/Reservation";
 import Story from "@/pages/Story";
 import Contact from "@/pages/Contact";
 import OrderTracking from "@/pages/OrderTracking";
+import Cart from "@/pages/Cart";
 import AdminDashboard, { AdminLogin } from "@/pages/Admin";
 import { CartProvider } from "@/context/CartContext";
 import "@/index.css";
@@ -28,6 +29,7 @@ function AppRoutes() {
           <Route path="/histoire" element={<Story />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/suivi/:id" element={<OrderTracking />} />
+          <Route path="/panier" element={<Cart />} />
           <Route path="/Angel/login" element={<AdminLogin />} />
           <Route path="/Angel/dashboard" element={<AdminDashboard />} />
         </Routes>

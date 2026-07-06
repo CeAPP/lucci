@@ -585,7 +585,7 @@ function PromosTab() {
       <div className="border border-ink/10 bg-cream p-4 mb-6 grid grid-cols-2 md:grid-cols-5 gap-3">
         <Input placeholder="Code" value={n.code} onChange={(e) => setN({...n, code: e.target.value.toUpperCase()})} className="rounded-none bg-transparent border-ink/20" />
         <select value={n.type} onChange={(e) => setN({...n, type: e.target.value})} className="border border-ink/20 px-3 py-2 bg-transparent">
-          <option value="percent">Pourcentage</option><option value="fixed">Montant fixe</option><option value="bogo">BOGO</option>
+          <option value="percent">Pourcentage</option><option value="fixed">Montant fixe</option>
         </select>
         <Input type="number" placeholder="Valeur" value={n.value} onChange={(e) => setN({...n, value: parseFloat(e.target.value)||0})} className="rounded-none bg-transparent border-ink/20" />
         <Input type="number" placeholder="Seuil (CHF)" value={n.min_amount} onChange={(e) => setN({...n, min_amount: parseFloat(e.target.value)||0})} className="rounded-none bg-transparent border-ink/20" />
@@ -595,7 +595,7 @@ function PromosTab() {
         {items.map((p) => (
           <div key={p.id} className="border border-ink/10 bg-cream p-3 flex items-center gap-3">
             <span className="font-mono text-brand">{p.code}</span>
-            <span className="text-sm text-muted2">{p.type === "percent" ? `${p.value}%` : p.type === "fixed" ? CHF(p.value) : "BOGO"}</span>
+            <span className="text-sm text-muted2">{p.type === "percent" ? `${p.value}%` : CHF(p.value)}</span>
             {p.min_amount > 0 && <span className="text-xs text-muted2">min {CHF(p.min_amount)}</span>}
             <Button variant="outline" size="sm" onClick={() => del(p)} className="ml-auto rounded-none border-ink/20"><Trash2 size={12}/></Button>
           </div>
@@ -694,6 +694,7 @@ function SettingsTab() {
         <div><Label>Adresse</Label><Input value={s.address} onChange={(e) => setS({...s, address: e.target.value})} className="rounded-none bg-transparent border-ink/20" /></div>
         <div><Label>TVA emporter</Label><Input type="number" step="0.001" value={s.vat_takeaway} onChange={(e) => setS({...s, vat_takeaway: parseFloat(e.target.value)})} className="rounded-none bg-transparent border-ink/20" /></div>
         <div><Label>TVA livraison</Label><Input type="number" step="0.001" value={s.vat_delivery} onChange={(e) => setS({...s, vat_delivery: parseFloat(e.target.value)})} className="rounded-none bg-transparent border-ink/20" /></div>
+        <div><Label>Temps de préparation (min)</Label><Input type="number" step="1" value={s.preparation_time_minutes || 30} onChange={(e) => setS({...s, preparation_time_minutes: parseInt(e.target.value) || 30})} data-testid="prep-time-input" className="rounded-none bg-transparent border-ink/20" /></div>
       </div>
       <label className="flex items-center gap-3"><Switch checked={s.orders_enabled} onCheckedChange={(v) => setS({...s, orders_enabled: v})} /> Commandes activées</label>
       <label className="flex items-center gap-3"><Switch checked={s.reservations_enabled} onCheckedChange={(v) => setS({...s, reservations_enabled: v})} /> Réservations activées</label>
