@@ -1,115 +1,133 @@
+@import "@fontsource/cormorant-garamond/400.css";
+@import "@fontsource/cormorant-garamond/500.css";
+@import "@fontsource/cormorant-garamond/600.css";
+@import "@fontsource/cormorant-garamond/400-italic.css";
+@import "@fontsource/manrope/300.css";
+@import "@fontsource/manrope/400.css";
+@import "@fontsource/manrope/500.css";
+@import "@fontsource/manrope/600.css";
+@import "@fontsource/manrope/700.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --brand: #7FA9A8;
+  --brand-hover: #6C908F;
+  --bg: #FDFBF7;
+  --surface: #F5F2EA;
+  --surface-hover: #EFEBE0;
+  --ink: #1A1C18;
+  --muted: #5C6057;
+}
+
 body {
-    margin: 0;
-    font-family:
-        -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-        "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-        sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  font-family: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-code {
-    font-family:
-        source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+.font-display {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
-@layer base {
-    :root {
-        --background: 0 0% 100%;
-        --foreground: 0 0% 3.9%;
-        --card: 0 0% 100%;
-        --card-foreground: 0 0% 3.9%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 0 0% 3.9%;
-        --primary: 0 0% 9%;
-        --primary-foreground: 0 0% 98%;
-        --secondary: 0 0% 96.1%;
-        --secondary-foreground: 0 0% 9%;
-        --muted: 0 0% 96.1%;
-        --muted-foreground: 0 0% 45.1%;
-        --accent: 0 0% 96.1%;
-        --accent-foreground: 0 0% 9%;
-        --destructive: 0 84.2% 60.2%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 89.8%;
-        --input: 0 0% 89.8%;
-        --ring: 0 0% 3.9%;
-        --chart-1: 12 76% 61%;
-        --chart-2: 173 58% 39%;
-        --chart-3: 197 37% 24%;
-        --chart-4: 43 74% 66%;
-        --chart-5: 27 87% 67%;
-        --radius: 0.5rem;
-    }
-    .dark {
-        --background: 0 0% 3.9%;
-        --foreground: 0 0% 98%;
-        --card: 0 0% 3.9%;
-        --card-foreground: 0 0% 98%;
-        --popover: 0 0% 3.9%;
-        --popover-foreground: 0 0% 98%;
-        --primary: 0 0% 98%;
-        --primary-foreground: 0 0% 9%;
-        --secondary: 0 0% 14.9%;
-        --secondary-foreground: 0 0% 98%;
-        --muted: 0 0% 14.9%;
-        --muted-foreground: 0 0% 63.9%;
-        --accent: 0 0% 14.9%;
-        --accent-foreground: 0 0% 98%;
-        --destructive: 0 62.8% 30.6%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 14.9%;
-        --input: 0 0% 14.9%;
-        --ring: 0 0% 83.1%;
-        --chart-1: 220 70% 50%;
-        --chart-2: 160 60% 45%;
-        --chart-3: 30 80% 55%;
-        --chart-4: 280 65% 60%;
-        --chart-5: 340 75% 55%;
-    }
+.font-italic-display {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
 }
 
 @layer base {
-    * {
-        @apply border-border;
-    }
-    body {
-        @apply bg-background text-foreground;
-    }
+  :root {
+    --background: 42 40% 98%;
+    --foreground: 80 8% 10%;
+    --card: 42 40% 98%;
+    --card-foreground: 80 8% 10%;
+    --popover: 42 40% 98%;
+    --popover-foreground: 80 8% 10%;
+    --primary: 179 17% 58%;
+    --primary-foreground: 42 40% 98%;
+    --secondary: 44 26% 93%;
+    --secondary-foreground: 80 8% 10%;
+    --muted: 44 26% 93%;
+    --muted-foreground: 90 6% 36%;
+    --accent: 44 26% 90%;
+    --accent-foreground: 80 8% 10%;
+    --destructive: 0 74% 35%;
+    --destructive-foreground: 42 40% 98%;
+    --border: 80 8% 88%;
+    --input: 80 8% 88%;
+    --ring: 179 17% 58%;
+    --radius: 0.25rem;
+  }
 }
 
 @layer base {
-    [data-debug-wrapper="true"] {
-        display: contents !important;
-    }
-
-    [data-debug-wrapper="true"] > * {
-        margin-left: inherit;
-        margin-right: inherit;
-        margin-top: inherit;
-        margin-bottom: inherit;
-        padding-left: inherit;
-        padding-right: inherit;
-        padding-top: inherit;
-        padding-bottom: inherit;
-        column-gap: inherit;
-        row-gap: inherit;
-        gap: inherit;
-        border-left-width: inherit;
-        border-right-width: inherit;
-        border-top-width: inherit;
-        border-bottom-width: inherit;
-        border-left-style: inherit;
-        border-right-style: inherit;
-        border-top-style: inherit;
-        border-bottom-style: inherit;
-        border-left-color: inherit;
-        border-right-color: inherit;
-        border-top-color: inherit;
-        border-bottom-color: inherit;
-    }
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; }
 }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: rgba(26,28,24,.15); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(26,28,24,.28); }
+
+/* Selection */
+::selection { background: var(--brand); color: #fff; }
+
+/* Grain overlay utility */
+.grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+  opacity: .06;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+/* Fade-up */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fadeUp .8s cubic-bezier(.22,1,.36,1) both; }
+
+/* Marquee */
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-marquee { animation: marquee 28s linear infinite; }
+
+/* Ken burns */
+@keyframes kenBurns {
+  0%   { transform: scale(1) translate(0,0); }
+  100% { transform: scale(1.12) translate(-1%,-1%); }
+}
+.animate-ken { animation: kenBurns 18s ease-out infinite alternate; }
+
+/* Underline link */
+.link-underline {
+  position: relative;
+}
+.link-underline::after {
+  content: "";
+  position: absolute;
+  left: 0; bottom: -3px;
+  width: 100%; height: 1px;
+  background: currentColor;
+  transform-origin: right;
+  transform: scaleX(0);
+  transition: transform .5s cubic-bezier(.22,1,.36,1);
+}
+.link-underline:hover::after { transform-origin: left; transform: scaleX(1); }
+
+[data-debug-wrapper="true"] { display: contents !important; }

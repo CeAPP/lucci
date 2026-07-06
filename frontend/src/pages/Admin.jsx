@@ -1,0 +1,779 @@
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import api, { CHF, mediaUrl } from "@/lib/api";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { LogOut, Bell, BellOff, Phone, Trash2, ChevronUp, ChevronDown, Plus, Pencil, Volume2, Copy, Download } from "lucide-react";
+
+const LOGO = "https://customer-assets.emergentagent.com/job_pizzeria-app-26/artifacts/jwci5np5_LOgo%20angelucci.png";
+const DAY_LABELS = { mon: "Lundi", tue: "Mardi", wed: "Mercredi", thu: "Jeudi", fri: "Vendredi", sat: "Samedi", sun: "Dimanche" };
+
+// =========== LOGIN ===========
+export function AdminLogin() {
+  const nav = useNavigate();
+  const [u, setU] = useState("");
+  const [p, setP] = useState("");
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr(""); setLoading(true);
+    try {
+      const { data } = await api.post("/auth/login", { username: u, password: p });
+      localStorage.setItem("angel_token", data.token);
+      localStorage.setItem("angel_role", data.role);
+      localStorage.setItem("angel_user", data.username);
+      nav("/Angel/dashboard");
+    } catch (e) {
+      setErr(e.response?.data?.detail || "Erreur");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-ink text-cream p-6">
+      <form onSubmit={submit} data-testid="admin-login-form" className="w-full max-w-sm">
+        <img src={LOGO} alt="Angelucci's" className="w-24 h-24 mx-auto mb-6 opacity-90" />
+        <h1 className="font-display text-3xl text-center mb-2">Espace Admin</h1>
+        <p className="text-center text-cream/50 text-xs tracking-widest uppercase mb-10">Angelucci's</p>
+        <div className="space-y-4">
+          <div>
+            <Label className="text-xs tracking-widest uppercase text-cream/70">Nom d'utilisateur</Label>
+            <Input value={u} onChange={(e) => setU(e.target.value)} data-testid="admin-username"
+              className="bg-transparent border-cream/20 rounded-none focus-visible:ring-brand text-cream mt-1.5" />
+          </div>
+          <div>
+            <Label className="text-xs tracking-widest uppercase text-cream/70">Mot de passe</Label>
+            <Input type="password" value={p} onChange={(e) => setP(e.target.value)} data-testid="admin-password"
+              className="bg-transparent border-cream/20 rounded-none focus-visible:ring-brand text-cream mt-1.5" />
+          </div>
+          {err && <p className="text-red-400 text-sm">{err}</p>}
+          <Button type="submit" disabled={loading} data-testid="admin-login-btn"
+            className="w-full bg-brand hover:bg-brand-hover text-cream rounded-none tracking-widest uppercase h-12">
+            {loading ? "…" : "Connexion"}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// =========== SOUND PING ===========
+function usePing() {
+  const ctxRef = useRef(null);
+  const enable = () => {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      ctxRef.current = new AC();
+      // resume + a silent tap
+      const o = ctxRef.current.createOscillator();
+      const g = ctxRef.current.createGain();
+      g.gain.value = 0;
+      o.connect(g); g.connect(ctxRef.current.destination);
+      o.start(); o.stop(ctxRef.current.currentTime + 0.05);
+      return true;
+    } catch { return false; }
+  };
+  const play = () => {
+    if (!ctxRef.current) return;
+    const ctx = ctxRef.current;
+    const now = ctx.currentTime;
+    [0, 0.15, 0.3].forEach((t, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.frequency.value = 880 + i * 220;
+      o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.0001, now + t);
+      g.gain.exponentialRampToValueAtTime(0.25, now + t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.12);
+      o.start(now + t); o.stop(now + t + 0.14);
+    });
+  };
+  return { enable, play, enabled: () => !!ctxRef.current };
+}
+
+// =========== ORDERS TAB ===========
+function OrdersTab({ ping }) {
+  const [orders, setOrders] = useState([]);
+  const [filter, setFilter] = useState("all");
+  const lastIdsRef = useRef(new Set());
+
+  const load = async () => {
+    const { data } = await api.get("/admin/orders");
+    setOrders(data);
+    // detect new
+    const cur = new Set(data.filter((o) => o.status === "new").map((o) => o.id));
+    if (lastIdsRef.current.size > 0) {
+      let added = 0;
+      cur.forEach((id) => { if (!lastIdsRef.current.has(id)) added++; });
+      if (added > 0) { ping.play(); toast.success(`${added} nouvelle${added>1?"s":""} commande${added>1?"s":""}`); }
+    }
+    lastIdsRef.current = cur;
+  };
+  useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, []);
+
+  const filtered = orders.filter((o) => filter === "all" || o.status === filter);
+
+  const advance = async (o) => {
+    const flow = ["new", "preparing", "ready", "handed", "done"];
+    const next = flow[Math.min(flow.length - 1, flow.indexOf(o.status) + 1)];
+    await api.patch(`/admin/orders/${o.id}/status`, null, { params: { status: next } });
+    load();
+  };
+  const del = async (o) => { if (!confirm("Supprimer ?")) return; await api.delete(`/admin/orders/${o.id}`); load(); };
+
+  const STATUS_CFG = {
+    new: { label: "Nouvelle", color: "bg-brand text-cream" },
+    preparing: { label: "En préparation", color: "bg-amber-600 text-cream" },
+    ready: { label: "Prête", color: "bg-emerald-700 text-cream" },
+    handed: { label: "Remise", color: "bg-ink text-cream" },
+    done: { label: "Terminée", color: "bg-ink/40 text-cream" },
+  };
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        {["all", "new", "preparing", "ready", "handed", "done"].map((s) => (
+          <button key={s} onClick={() => setFilter(s)} data-testid={`filter-${s}`}
+            className={`px-4 py-2 text-xs tracking-widest uppercase border transition-colors ${filter===s ? "bg-ink text-cream border-ink" : "border-ink/20 hover:border-brand"}`}>
+            {s === "all" ? "Toutes" : STATUS_CFG[s].label} ({s === "all" ? orders.length : orders.filter((o) => o.status === s).length})
+          </button>
+        ))}
+      </div>
+      {filtered.length === 0 && <p className="text-muted2">Aucune commande.</p>}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filtered.map((o) => (
+          <div key={o.id} className="border border-ink/10 bg-cream p-5" data-testid={`order-card-${o.id}`}>
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <span className={`inline-block text-[10px] tracking-widest uppercase px-2 py-1 mb-2 ${STATUS_CFG[o.status].color}`}>{STATUS_CFG[o.status].label}</span>
+                <p className="font-display text-xl">{o.customer.first_name} {o.customer.last_name}</p>
+                <a href={`tel:${o.customer.phone.replace(/\s/g,"")}`} className="text-brand text-lg link-underline flex items-center gap-1">
+                  <Phone size={14} /> {o.customer.phone}
+                </a>
+              </div>
+              <p className="text-right text-xs text-muted2">#{o.order_number}</p>
+            </div>
+
+            <div className="my-3 p-2.5 bg-brand/10 border border-brand text-center">
+              <p className="text-[10px] tracking-widest uppercase text-brand">Créneau · {o.fulfillment_type === "delivery" ? "Livraison" : "À emporter"}</p>
+              <p className="font-display text-lg">{o.pickup_time_label}</p>
+            </div>
+
+            <div className="text-xs bg-amber-100 text-amber-900 px-2 py-1 mb-3 inline-block">💵 À payer sur place</div>
+
+            <div className="text-sm space-y-1 mb-3">
+              {o.items.map((it, i) => (
+                <div key={i}>
+                  <div className="flex justify-between">
+                    <span>{it.quantity}× {it.name}</span>
+                    <span>{CHF(it.line_total)}</span>
+                  </div>
+                  {it.selected_addons.length > 0 && (
+                    <p className="text-xs text-muted2 pl-3">+ {it.selected_addons.map(a=>a.name).join(", ")}</p>
+                  )}
+                  {it.note && <p className="text-xs italic text-muted2 pl-3">✎ {it.note}</p>}
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-ink/10 pt-2 flex justify-between text-sm">
+              <span className="text-muted2">Total</span>
+              <span className="text-brand font-medium">{CHF(o.total)}</span>
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              {o.status !== "done" && (
+                <Button onClick={() => advance(o)} data-testid={`advance-${o.id}`}
+                  className="flex-1 bg-brand hover:bg-brand-hover text-cream rounded-none uppercase text-xs tracking-widest h-9">
+                  Avancer →
+                </Button>
+              )}
+              <Button onClick={() => del(o)} variant="outline" data-testid={`delete-${o.id}`}
+                className="rounded-none border-ink/20 h-9 px-3"><Trash2 size={14} /></Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// =========== RESERVATIONS TAB ===========
+function ReservationsTab() {
+  const [items, setItems] = useState([]);
+  const load = async () => { const { data } = await api.get("/admin/reservations"); setItems(data); };
+  useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, []);
+  const setStatus = async (r, status) => { await api.patch(`/admin/reservations/${r.id}/status`, null, { params: { status } }); load(); };
+
+  return (
+    <div className="space-y-3">
+      {items.length === 0 && <p className="text-muted2">Aucune réservation.</p>}
+      {items.map((r) => (
+        <div key={r.id} className="border border-ink/10 bg-cream p-5 flex flex-wrap items-start gap-4 justify-between" data-testid={`res-${r.id}`}>
+          <div className="flex-1 min-w-[240px]">
+            <div className="flex gap-3 items-center mb-1">
+              <span className={`text-[10px] tracking-widest uppercase px-2 py-1 ${r.status==="confirmed"?"bg-brand text-cream":r.status==="cancelled"?"bg-red-800 text-cream":"bg-ink/40 text-cream"}`}>{r.status}</span>
+              <span className="font-display text-2xl">{r.date} · {r.time}</span>
+            </div>
+            <p className="text-lg">{r.first_name} · <a href={`tel:${r.phone}`} className="text-brand link-underline">{r.phone}</a> · <span className="text-muted2">{r.email}</span></p>
+            <p className="text-sm text-muted2">Personnes : <strong>{r.people}</strong>{r.comment ? ` · Commentaire : ${r.comment}` : ""}</p>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => setStatus(r, "confirmed")} className="rounded-none bg-brand hover:bg-brand-hover text-cream uppercase text-xs">Confirmer</Button>
+            <Button size="sm" onClick={() => setStatus(r, "done")} className="rounded-none bg-ink text-cream uppercase text-xs">Terminée</Button>
+            <Button size="sm" variant="outline" onClick={() => setStatus(r, "cancelled")} className="rounded-none border-ink/20 uppercase text-xs">Annuler</Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// =========== MENU TAB ===========
+function MenuTab() {
+  const [products, setProducts] = useState([]);
+  const [cats, setCats] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [filterMenu, setFilterMenu] = useState("restaurant");
+  const [filterCat, setFilterCat] = useState("");
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState(null);
+  const [editingCat, setEditingCat] = useState(null);
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [subtab, setSubtab] = useState("products");
+
+  const load = async () => {
+    const [p, c, g] = await Promise.all([
+      api.get("/products/all"), api.get("/categories"), api.get("/addon-groups"),
+    ]);
+    setProducts(p.data); setCats(c.data); setGroups(g.data);
+  };
+  useEffect(() => { load(); }, []);
+
+  const filtered = products.filter((p) => p.menu_type === filterMenu && (!filterCat || p.category_id === filterCat) && (!search || p.name.toLowerCase().includes(search.toLowerCase())));
+
+  const del = async (p) => { if (!confirm("Supprimer ?")) return; await api.delete(`/products/${p.id}`); load(); };
+  const setOOS = async (p, days) => {
+    let until = "";
+    if (days > 0) { const d = new Date(); d.setDate(d.getDate() + days); until = d.toISOString().split("T")[0]; }
+    await api.post(`/products/${p.id}/oos`, null, { params: { until } });
+    load();
+  };
+  const catsFor = (menuType) => cats.filter((c) => c.menu_type === menuType);
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-6">
+        {["products", "categories", "addons"].map((s) => (
+          <button key={s} onClick={() => setSubtab(s)}
+            className={`px-4 py-2 text-xs tracking-widest uppercase border transition-colors ${subtab===s ? "bg-ink text-cream border-ink" : "border-ink/20 hover:border-brand"}`}>
+            {s === "products" ? "Produits" : s === "categories" ? "Catégories" : "Suppléments"}
+          </button>
+        ))}
+      </div>
+
+      {subtab === "products" && (
+        <>
+          <div className="flex flex-wrap gap-3 mb-4 items-center">
+            {["restaurant", "epicerie"].map((mt) => (
+              <button key={mt} onClick={() => { setFilterMenu(mt); setFilterCat(""); }} data-testid={`filter-menu-${mt}`}
+                className={`px-4 py-2 text-xs tracking-widest uppercase border ${filterMenu===mt ? "bg-brand text-cream border-brand" : "border-ink/20"}`}>{mt}</button>
+            ))}
+            <select value={filterCat} onChange={(e) => setFilterCat(e.target.value)} className="border border-ink/20 px-3 py-2 bg-transparent text-sm">
+              <option value="">Toutes catégories</option>
+              {catsFor(filterMenu).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <Input placeholder="Rechercher" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs bg-transparent border-ink/20 rounded-none focus-visible:ring-brand" />
+            <Button onClick={() => setEditing({ menu_type: filterMenu, category_id: catsFor(filterMenu)[0]?.id, price: 0, addon_group_ids: [], is_active: true })}
+              data-testid="new-product-btn"
+              className="ml-auto bg-brand hover:bg-brand-hover text-cream rounded-none uppercase text-xs tracking-widest"><Plus size={14} className="mr-1"/> Nouveau produit</Button>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map((p) => (
+              <div key={p.id} className="border border-ink/10 bg-cream p-4 flex gap-3">
+                {p.image_url && <img src={mediaUrl(p.image_url)} alt="" className="w-24 h-24 object-cover" />}
+                <div className="flex-1">
+                  <p className="font-display text-lg">{p.name}</p>
+                  <p className="text-sm text-brand mb-1">{CHF(p.price)}</p>
+                  {p.out_of_stock_until && <p className="text-xs text-red-700">Rupture jusqu'au {p.out_of_stock_until}</p>}
+                  <div className="flex gap-1 mt-2 flex-wrap">
+                    <Button size="sm" onClick={() => setEditing(p)} className="rounded-none h-7 px-2 text-xs bg-ink text-cream"><Pencil size={12}/></Button>
+                    <Button size="sm" variant="outline" onClick={() => del(p)} className="rounded-none h-7 px-2 border-ink/20"><Trash2 size={12}/></Button>
+                    {[1,2,3,7].map((d) => (
+                      <Button key={d} size="sm" variant="outline" onClick={() => setOOS(p, d)} className="rounded-none h-7 px-2 text-xs border-ink/20">OOS {d}j</Button>
+                    ))}
+                    {p.out_of_stock_until && <Button size="sm" onClick={() => setOOS(p, 0)} className="rounded-none h-7 px-2 text-xs bg-emerald-700 text-cream">Réactiver</Button>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {editing && <ProductEditor product={editing} cats={cats} groups={groups} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+        </>
+      )}
+
+      {subtab === "categories" && (
+        <CategoriesEditor cats={cats} onChange={load} onEdit={setEditingCat} editing={editingCat} setEditing={setEditingCat} />
+      )}
+      {subtab === "addons" && (
+        <AddonGroupsEditor groups={groups} onChange={load} editing={editingGroup} setEditing={setEditingGroup} />
+      )}
+    </div>
+  );
+}
+
+function ProductEditor({ product, cats, groups, onClose, onSaved }) {
+  const [p, setP] = useState({ id: product.id, name: product.name || "", description: product.description || "", price: product.price || 0, image_url: product.image_url || "", category_id: product.category_id, menu_type: product.menu_type || "restaurant", addon_group_ids: product.addon_group_ids || [], out_of_stock_until: product.out_of_stock_until, is_active: product.is_active !== false });
+  const [uploading, setUploading] = useState(false);
+  const save = async () => {
+    if (product.id) await api.put(`/products/${product.id}`, p);
+    else await api.post("/products", p);
+    toast.success("Enregistré");
+    onSaved();
+  };
+  const upload = async (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    setUploading(true);
+    const fd = new FormData(); fd.append("file", f);
+    try { const { data } = await api.post("/upload", fd, { headers: { "Content-Type": "multipart/form-data" } }); setP({ ...p, image_url: data.url }); }
+    finally { setUploading(false); }
+  };
+  const availCats = cats.filter((c) => c.menu_type === p.menu_type);
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-xl bg-cream rounded-none max-h-[90vh] overflow-y-auto">
+        <DialogTitle>{product.id ? "Modifier" : "Nouveau"} produit</DialogTitle>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Menu</Label>
+              <select value={p.menu_type} onChange={(e) => setP({...p, menu_type: e.target.value})} className="w-full border border-ink/20 px-3 py-2 bg-transparent">
+                <option value="restaurant">Restaurant</option><option value="epicerie">Épicerie</option>
+              </select>
+            </div>
+            <div><Label>Catégorie</Label>
+              <select value={p.category_id} onChange={(e) => setP({...p, category_id: e.target.value})} className="w-full border border-ink/20 px-3 py-2 bg-transparent">
+                {availCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div><Label>Nom</Label><Input value={p.name} onChange={(e) => setP({...p, name: e.target.value})} className="rounded-none bg-transparent border-ink/20" /></div>
+          <div><Label>Description</Label><Textarea value={p.description} onChange={(e) => setP({...p, description: e.target.value})} className="rounded-none bg-transparent border-ink/20 resize-none" rows={3} /></div>
+          <div><Label>Prix (CHF)</Label><Input type="number" step="0.10" value={p.price} onChange={(e) => setP({...p, price: parseFloat(e.target.value)||0})} className="rounded-none bg-transparent border-ink/20" /></div>
+          <div><Label>Image URL</Label>
+            <Input value={p.image_url} onChange={(e) => setP({...p, image_url: e.target.value})} placeholder="https://... ou /api/uploads/..." className="rounded-none bg-transparent border-ink/20" />
+            <input type="file" accept="image/*" onChange={upload} className="mt-2 text-sm" />
+            {uploading && <p className="text-xs text-muted2">Envoi…</p>}
+            {p.image_url && <img src={mediaUrl(p.image_url)} alt="" className="mt-2 w-32 h-32 object-cover border border-ink/10" />}
+          </div>
+          <div><Label>Groupes de suppléments</Label>
+            <div className="space-y-1 mt-2">
+              {groups.map((g) => (
+                <label key={g.id} className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={p.addon_group_ids.includes(g.id)} onCheckedChange={(v) => setP({ ...p, addon_group_ids: v ? [...p.addon_group_ids, g.id] : p.addon_group_ids.filter((x) => x !== g.id) })} />
+                  {g.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <Button onClick={save} className="flex-1 bg-brand hover:bg-brand-hover text-cream rounded-none uppercase tracking-widest">Enregistrer</Button>
+          <Button variant="outline" onClick={onClose} className="rounded-none border-ink/20">Annuler</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CategoriesEditor({ cats, onChange, editing, setEditing }) {
+  const [menuType, setMenuType] = useState("restaurant");
+  const filtered = cats.filter((c) => c.menu_type === menuType).sort((a, b) => a.order - b.order);
+  const move = async (c, dir) => { await api.post(`/categories/${c.id}/move`, null, { params: { direction: dir } }); onChange(); };
+  const del = async (c) => { if (!confirm("Supprimer ?")) return; await api.delete(`/categories/${c.id}`); onChange(); };
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-4">
+        {["restaurant", "epicerie"].map((mt) => (
+          <button key={mt} onClick={() => setMenuType(mt)} className={`px-4 py-2 text-xs tracking-widest uppercase border ${menuType===mt ? "bg-brand text-cream border-brand" : "border-ink/20"}`}>{mt}</button>
+        ))}
+        <Button onClick={() => setEditing({ menu_type: menuType, name: "", order: filtered.length })} className="ml-auto bg-brand hover:bg-brand-hover text-cream rounded-none uppercase text-xs tracking-widest"><Plus size={14}/></Button>
+      </div>
+      <div className="space-y-2">
+        {filtered.map((c) => (
+          <div key={c.id} className="border border-ink/10 bg-cream p-3 flex items-center gap-3">
+            <span className="flex-1 font-display text-lg">{c.name}</span>
+            <button onClick={() => move(c, "up")} className="p-1"><ChevronUp size={16}/></button>
+            <button onClick={() => move(c, "down")} className="p-1"><ChevronDown size={16}/></button>
+            <Button size="sm" onClick={() => setEditing(c)} className="rounded-none h-7 bg-ink text-cream"><Pencil size={12}/></Button>
+            <Button size="sm" variant="outline" onClick={() => del(c)} className="rounded-none h-7 border-ink/20"><Trash2 size={12}/></Button>
+          </div>
+        ))}
+      </div>
+      {editing && (
+        <Dialog open onOpenChange={(v) => !v && setEditing(null)}>
+          <DialogContent className="bg-cream rounded-none">
+            <DialogTitle>{editing.id ? "Modifier" : "Nouvelle"} catégorie</DialogTitle>
+            <div className="space-y-3">
+              <div><Label>Nom</Label><Input value={editing.name} onChange={(e) => setEditing({...editing, name: e.target.value})} className="rounded-none bg-transparent border-ink/20" /></div>
+              <div><Label>Menu</Label>
+                <select value={editing.menu_type} onChange={(e) => setEditing({...editing, menu_type: e.target.value})} className="w-full border border-ink/20 px-3 py-2 bg-transparent">
+                  <option value="restaurant">Restaurant</option><option value="epicerie">Épicerie</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <Button onClick={async () => {
+                if (editing.id) await api.put(`/categories/${editing.id}`, editing);
+                else await api.post("/categories", editing);
+                setEditing(null); onChange();
+              }} className="flex-1 bg-brand hover:bg-brand-hover text-cream rounded-none uppercase tracking-widest">Enregistrer</Button>
+              <Button variant="outline" onClick={() => setEditing(null)} className="rounded-none border-ink/20">Annuler</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+function AddonGroupsEditor({ groups, onChange, editing, setEditing }) {
+  const del = async (g) => { if (!confirm("Supprimer ?")) return; await api.delete(`/addon-groups/${g.id}`); onChange(); };
+  return (
+    <div>
+      <div className="flex mb-4">
+        <Button onClick={() => setEditing({ name: "", required: false, multi: false, min: 0, max: 1, options: [] })} className="ml-auto bg-brand hover:bg-brand-hover text-cream rounded-none uppercase text-xs tracking-widest"><Plus size={14}/> Nouveau groupe</Button>
+      </div>
+      <div className="space-y-2">
+        {groups.map((g) => (
+          <div key={g.id} className="border border-ink/10 bg-cream p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <p className="font-display text-xl">{g.name}</p>
+                <p className="text-xs text-muted2">{g.required ? "Obligatoire" : "Optionnel"} · {g.multi ? "Choix multiples" : "Choix unique"} · {g.options.length} options</p>
+              </div>
+              <Button size="sm" onClick={() => setEditing(g)} className="rounded-none h-7 bg-ink text-cream"><Pencil size={12}/></Button>
+              <Button size="sm" variant="outline" onClick={() => del(g)} className="rounded-none h-7 border-ink/20"><Trash2 size={12}/></Button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {editing && (
+        <Dialog open onOpenChange={(v) => !v && setEditing(null)}>
+          <DialogContent className="bg-cream rounded-none max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogTitle>Groupe de suppléments</DialogTitle>
+            <div className="space-y-3">
+              <div><Label>Nom</Label><Input value={editing.name} onChange={(e) => setEditing({...editing, name: e.target.value})} className="rounded-none bg-transparent border-ink/20" /></div>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 text-sm"><Checkbox checked={editing.required} onCheckedChange={(v) => setEditing({...editing, required: !!v})} />Obligatoire</label>
+                <label className="flex items-center gap-2 text-sm"><Checkbox checked={editing.multi} onCheckedChange={(v) => setEditing({...editing, multi: !!v})} />Choix multiples</label>
+              </div>
+              <div>
+                <Label>Options</Label>
+                {editing.options.map((o, i) => (
+                  <div key={i} className="flex gap-2 mt-2">
+                    <Input value={o.name} onChange={(e) => { const opts = [...editing.options]; opts[i].name = e.target.value; setEditing({...editing, options: opts}); }} placeholder="Nom" className="rounded-none bg-transparent border-ink/20" />
+                    <Input type="number" step="0.1" value={o.price} onChange={(e) => { const opts = [...editing.options]; opts[i].price = parseFloat(e.target.value) || 0; setEditing({...editing, options: opts}); }} placeholder="Prix" className="w-24 rounded-none bg-transparent border-ink/20" />
+                    <Button variant="outline" onClick={() => setEditing({...editing, options: editing.options.filter((_, j) => j !== i)})} className="rounded-none border-ink/20"><Trash2 size={12}/></Button>
+                  </div>
+                ))}
+                <Button onClick={() => setEditing({...editing, options: [...editing.options, { id: crypto.randomUUID(), name: "", price: 0 }]})} className="mt-2 rounded-none bg-ink text-cream uppercase text-xs">+ Option</Button>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <Button onClick={async () => {
+                if (editing.id) await api.put(`/addon-groups/${editing.id}`, editing);
+                else await api.post("/addon-groups", editing);
+                setEditing(null); onChange();
+              }} className="flex-1 bg-brand hover:bg-brand-hover text-cream rounded-none uppercase tracking-widest">Enregistrer</Button>
+              <Button variant="outline" onClick={() => setEditing(null)} className="rounded-none border-ink/20">Annuler</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+// =========== HOURS TAB ===========
+function HoursTab() {
+  const [tab, setTab] = useState("restaurant");
+  const [sched, setSched] = useState(null);
+  const [closedInput, setClosedInput] = useState("");
+
+  const load = async (kind) => { const { data } = await api.get(`/schedule/${kind}`); setSched(data); };
+  useEffect(() => { load(tab); }, [tab]);
+  if (!sched) return null;
+
+  const update = async () => {
+    await api.put(`/schedule/${tab}`, { days: sched.days, closed_dates: sched.closed_dates });
+    toast.success("Enregistré");
+    load(tab);
+  };
+  const setDay = (dk, patch) => setSched({ ...sched, days: { ...sched.days, [dk]: { ...sched.days[dk], ...patch } } });
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-6">
+        {["restaurant", "epicerie", "reservation"].map((k) => (
+          <button key={k} onClick={() => setTab(k)}
+            className={`px-4 py-2 text-xs tracking-widest uppercase border ${tab===k ? "bg-brand text-cream border-brand" : "border-ink/20"}`}>
+            {k}
+          </button>
+        ))}
+      </div>
+      <div className="grid gap-3">
+        {Object.entries(DAY_LABELS).map(([dk, dl]) => {
+          const d = sched.days[dk] || {};
+          return (
+            <div key={dk} className="border border-ink/10 bg-cream p-4 flex flex-wrap items-center gap-3">
+              <span className="w-24 font-medium">{dl}</span>
+              <label className="flex items-center gap-2 text-sm"><Switch checked={!d.closed} onCheckedChange={(v) => setDay(dk, { closed: !v })} /> Ouvert</label>
+              {!d.closed && (
+                <>
+                  <span className="text-xs text-muted2">Midi</span>
+                  <Input type="time" value={d.lunch_start} onChange={(e) => setDay(dk, { lunch_start: e.target.value })} className="w-32 rounded-none bg-transparent border-ink/20" />
+                  <Input type="time" value={d.lunch_end} onChange={(e) => setDay(dk, { lunch_end: e.target.value })} className="w-32 rounded-none bg-transparent border-ink/20" />
+                  <span className="text-xs text-muted2">Soir</span>
+                  <Input type="time" value={d.dinner_start} onChange={(e) => setDay(dk, { dinner_start: e.target.value })} className="w-32 rounded-none bg-transparent border-ink/20" />
+                  <Input type="time" value={d.dinner_end} onChange={(e) => setDay(dk, { dinner_end: e.target.value })} className="w-32 rounded-none bg-transparent border-ink/20" />
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-6 border border-ink/10 bg-cream p-4">
+        <p className="text-sm mb-2">Dates fermées (vacances)</p>
+        <div className="flex gap-2 mb-3">
+          <Input type="date" value={closedInput} onChange={(e) => setClosedInput(e.target.value)} className="w-48 rounded-none bg-transparent border-ink/20" />
+          <Button onClick={() => { if (closedInput && !sched.closed_dates.includes(closedInput)) { setSched({ ...sched, closed_dates: [...sched.closed_dates, closedInput] }); setClosedInput(""); } }} className="rounded-none bg-ink text-cream uppercase text-xs">Ajouter</Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {sched.closed_dates.map((d) => (
+            <span key={d} className="inline-flex items-center gap-2 border border-ink/20 px-3 py-1 text-xs">
+              {d}<button onClick={() => setSched({ ...sched, closed_dates: sched.closed_dates.filter((x) => x !== d) })}><Trash2 size={12}/></button>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <Button onClick={update} className="mt-6 bg-brand hover:bg-brand-hover text-cream rounded-none uppercase tracking-widest">Enregistrer les horaires</Button>
+    </div>
+  );
+}
+
+// =========== PROMOS TAB ===========
+function PromosTab() {
+  const [items, setItems] = useState([]);
+  const [n, setN] = useState({ code: "", type: "percent", value: 10, min_amount: 0, active: true });
+  const load = async () => { const { data } = await api.get("/admin/promos"); setItems(data); };
+  useEffect(() => { load(); }, []);
+  const create = async () => { await api.post("/admin/promos", n); toast.success("Créé"); setN({ code: "", type: "percent", value: 10, min_amount: 0, active: true }); load(); };
+  const del = async (p) => { if (!confirm("?")) return; await api.delete(`/admin/promos/${p.id}`); load(); };
+  return (
+    <div>
+      <div className="border border-ink/10 bg-cream p-4 mb-6 grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Input placeholder="Code" value={n.code} onChange={(e) => setN({...n, code: e.target.value.toUpperCase()})} className="rounded-none bg-transparent border-ink/20" />
+        <select value={n.type} onChange={(e) => setN({...n, type: e.target.value})} className="border border-ink/20 px-3 py-2 bg-transparent">
+          <option value="percent">Pourcentage</option><option value="fixed">Montant fixe</option><option value="bogo">BOGO</option>
+        </select>
+        <Input type="number" placeholder="Valeur" value={n.value} onChange={(e) => setN({...n, value: parseFloat(e.target.value)||0})} className="rounded-none bg-transparent border-ink/20" />
+        <Input type="number" placeholder="Seuil (CHF)" value={n.min_amount} onChange={(e) => setN({...n, min_amount: parseFloat(e.target.value)||0})} className="rounded-none bg-transparent border-ink/20" />
+        <Button onClick={create} className="bg-brand hover:bg-brand-hover text-cream rounded-none uppercase tracking-widest">Créer</Button>
+      </div>
+      <div className="space-y-2">
+        {items.map((p) => (
+          <div key={p.id} className="border border-ink/10 bg-cream p-3 flex items-center gap-3">
+            <span className="font-mono text-brand">{p.code}</span>
+            <span className="text-sm text-muted2">{p.type === "percent" ? `${p.value}%` : p.type === "fixed" ? CHF(p.value) : "BOGO"}</span>
+            {p.min_amount > 0 && <span className="text-xs text-muted2">min {CHF(p.min_amount)}</span>}
+            <Button variant="outline" size="sm" onClick={() => del(p)} className="ml-auto rounded-none border-ink/20"><Trash2 size={12}/></Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// =========== EMAILS TAB (owner) ===========
+function EmailsTab() {
+  const [items, setItems] = useState([]);
+  useEffect(() => { api.get("/admin/marketing-emails").then((r) => setItems(r.data)).catch(() => toast.error("Accès refusé")); }, []);
+  const csv = () => {
+    const rows = [["Email", "Prénom", "Nom", "Téléphone", "Source", "Commandes", "Réservations", "Dernière activité"]];
+    items.forEach((e) => rows.push([e.email, e.first_name||"", e.last_name||"", e.phone||"", e.source||"", e.order_count||0, e.reservation_count||0, e.last_activity||""]));
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "emails.csv"; a.click();
+  };
+  const copyAll = () => { navigator.clipboard.writeText(items.map((e) => e.email).join(", ")); toast.success("Copié"); };
+  return (
+    <div>
+      <div className="flex gap-2 mb-4">
+        <Button onClick={csv} className="bg-brand hover:bg-brand-hover text-cream rounded-none uppercase tracking-widest"><Download size={14} className="mr-2"/>Export CSV</Button>
+        <Button variant="outline" onClick={copyAll} className="rounded-none border-ink/20"><Copy size={14} className="mr-2"/>Copier tous</Button>
+      </div>
+      <div className="border border-ink/10 bg-cream overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="bg-cream-surface">
+            <th className="text-left p-3 text-xs tracking-widest uppercase">Email</th>
+            <th className="text-left p-3 text-xs tracking-widest uppercase">Client</th>
+            <th className="text-left p-3 text-xs tracking-widest uppercase">Téléphone</th>
+            <th className="text-left p-3 text-xs tracking-widest uppercase">Source</th>
+            <th className="text-left p-3 text-xs tracking-widest uppercase">Cmd</th>
+            <th className="text-left p-3 text-xs tracking-widest uppercase">Rés.</th>
+            <th className="text-left p-3 text-xs tracking-widest uppercase">Dernière activité</th>
+          </tr></thead>
+          <tbody>
+            {items.map((e) => (
+              <tr key={e.email} className="border-t border-ink/5">
+                <td className="p-3">{e.email}</td>
+                <td className="p-3">{e.first_name} {e.last_name}</td>
+                <td className="p-3">{e.phone}</td>
+                <td className="p-3 text-xs uppercase text-brand">{e.source}</td>
+                <td className="p-3">{e.order_count || 0}</td>
+                <td className="p-3">{e.reservation_count || 0}</td>
+                <td className="p-3 text-xs text-muted2">{e.last_activity?.slice(0,10)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// =========== ACCOUNTING TAB ===========
+function AccountingTab() {
+  const now = new Date();
+  const [m, setM] = useState(now.getMonth() + 1);
+  const [y, setY] = useState(now.getFullYear());
+  const download = async () => {
+    const res = await api.get("/admin/accounting/pdf", { params: { month: m, year: y }, responseType: "blob" });
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement("a"); a.href = url; a.download = `comptabilite-${y}-${String(m).padStart(2,"0")}.pdf`; a.click();
+  };
+  return (
+    <div className="border border-ink/10 bg-cream p-6 max-w-md">
+      <p className="font-display text-2xl mb-4">Rapport mensuel</p>
+      <p className="text-sm text-muted2 mb-4">CA brut/net, TVA détaillée, produits vendus. Anonymisé, commandes supprimées exclues.</p>
+      <div className="flex gap-2 mb-4">
+        <select value={m} onChange={(e) => setM(parseInt(e.target.value))} className="flex-1 border border-ink/20 px-3 py-2 bg-transparent">
+          {Array.from({length:12}).map((_,i) => <option key={i} value={i+1}>{new Date(0,i).toLocaleString("fr", {month:"long"})}</option>)}
+        </select>
+        <Input type="number" value={y} onChange={(e) => setY(parseInt(e.target.value))} className="w-28 rounded-none bg-transparent border-ink/20" />
+      </div>
+      <Button onClick={download} data-testid="download-pdf-btn" className="w-full bg-brand hover:bg-brand-hover text-cream rounded-none uppercase tracking-widest"><Download size={14} className="mr-2"/> Télécharger PDF</Button>
+    </div>
+  );
+}
+
+// =========== SETTINGS TAB ===========
+function SettingsTab() {
+  const [s, setS] = useState(null);
+  useEffect(() => { api.get("/settings").then((r) => setS(r.data)); }, []);
+  if (!s) return null;
+  const save = async () => { await api.put("/settings", s); toast.success("Enregistré"); };
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <div className="grid grid-cols-2 gap-3">
+        <div><Label>Nom restaurant</Label><Input value={s.restaurant_name} onChange={(e) => setS({...s, restaurant_name: e.target.value})} className="rounded-none bg-transparent border-ink/20" /></div>
+        <div><Label>Téléphone</Label><Input value={s.phone} onChange={(e) => setS({...s, phone: e.target.value})} className="rounded-none bg-transparent border-ink/20" /></div>
+        <div><Label>Email</Label><Input value={s.email} onChange={(e) => setS({...s, email: e.target.value})} className="rounded-none bg-transparent border-ink/20" /></div>
+        <div><Label>Adresse</Label><Input value={s.address} onChange={(e) => setS({...s, address: e.target.value})} className="rounded-none bg-transparent border-ink/20" /></div>
+        <div><Label>TVA emporter</Label><Input type="number" step="0.001" value={s.vat_takeaway} onChange={(e) => setS({...s, vat_takeaway: parseFloat(e.target.value)})} className="rounded-none bg-transparent border-ink/20" /></div>
+        <div><Label>TVA livraison</Label><Input type="number" step="0.001" value={s.vat_delivery} onChange={(e) => setS({...s, vat_delivery: parseFloat(e.target.value)})} className="rounded-none bg-transparent border-ink/20" /></div>
+      </div>
+      <label className="flex items-center gap-3"><Switch checked={s.orders_enabled} onCheckedChange={(v) => setS({...s, orders_enabled: v})} /> Commandes activées</label>
+      <label className="flex items-center gap-3"><Switch checked={s.reservations_enabled} onCheckedChange={(v) => setS({...s, reservations_enabled: v})} /> Réservations activées</label>
+      <Button onClick={save} className="bg-brand hover:bg-brand-hover text-cream rounded-none uppercase tracking-widest">Enregistrer</Button>
+    </div>
+  );
+}
+
+// =========== ADMIN DASHBOARD ===========
+export default function AdminDashboard() {
+  const nav = useNavigate();
+  const [tab, setTab] = useState("orders");
+  const ping = usePing();
+  const [soundOn, setSoundOn] = useState(false);
+  const [role, setRole] = useState("");
+  const [username, setUsername] = useState("");
+
+  useEffect(() => {
+    const t = localStorage.getItem("angel_token");
+    if (!t) { nav("/Angel/login"); return; }
+    setRole(localStorage.getItem("angel_role") || "");
+    setUsername(localStorage.getItem("angel_user") || "");
+  }, []);
+
+  const logout = () => { localStorage.removeItem("angel_token"); localStorage.removeItem("angel_role"); localStorage.removeItem("angel_user"); nav("/Angel/login"); };
+  const enableSound = () => { if (ping.enable()) { setSoundOn(true); toast.success("Notifications sonores activées"); } };
+
+  const isOwner = role === "owner";
+
+  return (
+    <div className="min-h-screen bg-cream-surface">
+      <header className="bg-ink text-cream sticky top-0 z-40">
+        <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center gap-6">
+          <img src={LOGO} alt="" className="h-10 w-10" />
+          <div className="flex-1">
+            <p className="text-xs tracking-widest uppercase text-cream/60">Espace admin</p>
+            <p className="font-display text-xl">Angelucci's</p>
+          </div>
+          <span className="text-xs text-cream/70">{username} · <span className="text-brand uppercase">{role}</span></span>
+          {!soundOn ? (
+            <Button onClick={enableSound} data-testid="enable-sound-btn" className="rounded-none bg-brand hover:bg-brand-hover text-cream uppercase text-xs tracking-widest"><Volume2 size={14} className="mr-1"/> Activer le son</Button>
+          ) : (
+            <span className="text-xs text-brand flex items-center gap-1"><Bell size={14}/> Son ON</span>
+          )}
+          <Button onClick={logout} variant="outline" data-testid="admin-logout" className="rounded-none border-cream/20 text-cream hover:bg-cream hover:text-ink"><LogOut size={14}/></Button>
+        </div>
+      </header>
+
+      <main className="max-w-[1600px] mx-auto px-6 py-8">
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList className="bg-transparent rounded-none border-b border-ink/10 w-full justify-start overflow-x-auto flex-wrap h-auto p-0">
+            {[
+              { v: "orders", label: "Commandes" },
+              { v: "reservations", label: "Réservations" },
+              { v: "menu", label: "Menu" },
+              { v: "hours", label: "Horaires" },
+              { v: "promos", label: "Promotions" },
+              ...(isOwner ? [{ v: "emails", label: "Emails clients" }] : []),
+              { v: "accounting", label: "Comptabilité" },
+              { v: "settings", label: "Paramètres" },
+            ].map((t) => (
+              <TabsTrigger key={t.v} value={t.v} data-testid={`tab-${t.v}`}
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-brand data-[state=active]:bg-transparent data-[state=active]:text-brand text-xs tracking-widest uppercase h-12 px-5">
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          <div className="mt-8">
+            <TabsContent value="orders"><OrdersTab ping={ping} /></TabsContent>
+            <TabsContent value="reservations"><ReservationsTab /></TabsContent>
+            <TabsContent value="menu"><MenuTab /></TabsContent>
+            <TabsContent value="hours"><HoursTab /></TabsContent>
+            <TabsContent value="promos"><PromosTab /></TabsContent>
+            {isOwner && <TabsContent value="emails"><EmailsTab /></TabsContent>}
+            <TabsContent value="accounting"><AccountingTab /></TabsContent>
+            <TabsContent value="settings"><SettingsTab /></TabsContent>
+          </div>
+        </Tabs>
+      </main>
+    </div>
+  );
+}

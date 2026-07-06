@@ -1,0 +1,22 @@
+import axios from "axios";
+
+export const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+export const API = `${BACKEND_URL}/api`;
+
+const client = axios.create({ baseURL: API });
+
+client.interceptors.request.use((cfg) => {
+  const t = localStorage.getItem("angel_token");
+  if (t) cfg.headers.Authorization = `Bearer ${t}`;
+  return cfg;
+});
+
+export default client;
+
+export const mediaUrl = (u) => {
+  if (!u) return "";
+  if (u.startsWith("http")) return u;
+  return `${BACKEND_URL}${u}`;
+};
+
+export const CHF = (v) => `CHF ${(Number(v) || 0).toFixed(2)}`;

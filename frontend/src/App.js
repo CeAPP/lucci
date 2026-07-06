@@ -1,56 +1,49 @@
-import { useEffect } from "react";
-import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-import { HOME } from "@/constants/testIds";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
+import { Toaster } from "sonner";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import Landing from "@/pages/Landing";
+import Menu from "@/pages/Menu";
+import Reservation from "@/pages/Reservation";
+import Story from "@/pages/Story";
+import Contact from "@/pages/Contact";
+import OrderTracking from "@/pages/OrderTracking";
+import AdminDashboard, { AdminLogin } from "@/pages/Admin";
+import { CartProvider } from "@/context/CartContext";
+import "@/index.css";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
+function AppRoutes() {
+  const loc = useLocation();
+  const isAdmin = loc.pathname.startsWith("/Angel/");
   return (
-    <div>
-      <header className="App-header">
-        <a
-          data-testid={HOME.emergentLink}
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
-};
-
-function App() {
-  return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
+    <>
+      {!isAdmin && <Header />}
+      <AnimatePresence mode="wait">
+        <Routes location={loc} key={loc.pathname}>
+          <Route path="/" element={<Landing />} />
+          <Route path="/commander" element={<Menu menuType="restaurant" />} />
+          <Route path="/epicerie" element={<Menu menuType="epicerie" />} />
+          <Route path="/reserver" element={<Reservation />} />
+          <Route path="/histoire" element={<Story />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/suivi/:id" element={<OrderTracking />} />
+          <Route path="/Angel/login" element={<AdminLogin />} />
+          <Route path="/Angel/dashboard" element={<AdminDashboard />} />
         </Routes>
-      </BrowserRouter>
-    </div>
+      </AnimatePresence>
+      {!isAdmin && <Footer />}
+    </>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <CartProvider>
+      <BrowserRouter>
+        <AppRoutes />
+        <Toaster position="top-right" richColors closeButton theme="light" />
+      </BrowserRouter>
+    </CartProvider>
+  );
+}

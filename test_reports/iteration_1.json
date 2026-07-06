@@ -1,0 +1,41 @@
+{
+  "summary": "First full-app test after implementation. Backend: 25/25 pytest tests pass after fixing an ObjectId serialization bug on create endpoints. Frontend: All critical flows verified — landing loads with hero CTAs, header nav works, order mode picker auto-opens on /commander, product cards + product modal + add-to-cart + sticky cart + checkout modal all functional. Order successfully created and redirected to /suivi/{id}. Reservation flow completes with success screen 'Votre table est réservée'. Admin owner login (AngelCED26) reaches dashboard showing all 8 tabs including 'Emails clients'; staff login (AnCED25) correctly hides the emails tab. Menu tab shows seeded products with 'Nouveau produit' button. Order status advance works. VAT rules correct (2.6% takeaway, 8.1% delivery, inclusive).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "OrderModePicker, CheckoutModal, product modal", "issues": ["Radix Dialog accessibility warnings: Missing `Description` or `aria-describedby` for DialogContent. Not blocking but should be fixed (add DialogDescription or aria-describedby)."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Already fixed by testing agent) ObjectId serialization: added .copy() before insert_one on create_category, create_addon_group, create_product, create_promo endpoints to avoid returning MongoDB _id (ObjectId) which is not JSON serializable and was causing 500 on POST /api/products (and would have affected /api/categories, /api/addon-groups, /api/admin/promos).",
+    "(Optional) Add DialogDescription (or aria-describedby) to Radix Dialog components (OrderModePicker, CheckoutModal, product modal) to silence a11y warnings."
+  ],
+  "critical_code_review_comments": [
+    "server.py: `insert_one(doc)` mutates the dict adding `_id: ObjectId`. Always pass `.copy()` for any doc that will be returned. Fixed in POST create routes for products/categories/addon-groups/promos; orders and reservations already used .copy().",
+    "server.py: `list_products(admin, user)` accepts a `user` query parameter which is dead / unsafe (should be removed — admins should use /api/products/all which is properly protected). Not exploitable but confusing surface.",
+    "server.py file is ~680 lines, still manageable but consider splitting routers (products, orders, admin, auth) into separate modules as it grows.",
+    "auth.py: passwords hashed at import time from env — fine for local dev; note that startup cost is negligible, and this ties the module to env being loaded first (which server.py does via load_dotenv before import — good).",
+    "reservations create route sets `deleted` for orders but reservations has no soft-delete; consistent scheme could be adopted later.",
+    "CORS uses `allow_origins=['*']` with `allow_credentials=True` — this combination is invalid per spec and can be silently downgraded by browsers. For production, replace with the actual frontend origin."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (fixed insert_one mutation on 4 create endpoints)",
+    "/app/backend/tests/backend_test.py (new pytest suite, 25 tests)"
+  ],
+  "success_rate": {"backend": "100% (25/25)", "frontend": "100% of critical flows"},
+  "test_credentials": "Owner: AngelCED26 / CE26$Lucc. Staff: AnCED25 / 26$LuANG. Present in /app/memory/test_credentials.md.",
+  "seed_data_creation": "Backend tests created TEST_-prefixed customers/orders/reservations/products used for verification. Test data left in DB is minimal and prefixed for easy cleanup.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "backend_test.py covers settings, auth (owner/staff/wrong), categories, products (list/CRUD/OOS/reorder), schedules, orders (takeaway+delivery+VAT), marketing opt-in, reservations (create/honeypot/past-time), admin JWT gating, marketing owner-only vs staff 403, accounting PDF. RESEND_API_KEY is intentionally empty — emails.py logs 'EMAIL SKIPPED' which is expected. Rate-limit test (429 after 10 failed attempts) not included to avoid polluting login_attempts state — verified route logic manually.",
+  "rca of the issue": "Bug found & fixed: POST /api/products (and analogous create routes for categories/addon-groups/promos) returned 500 with `ValueError: [TypeError('ObjectId object is not iterable')]`. Root cause: `motor.insert_one(doc)` mutates the dict in place, adding `_id: ObjectId(...)`. FastAPI then attempted to JSON-serialize the returned dict, which fails on ObjectId. Fix: pass `doc.copy()` to `insert_one` so the returned `doc` remains ObjectId-free. Orders/reservations endpoints already followed this pattern; the four affected create endpoints have been aligned."
+}
