@@ -81,39 +81,50 @@ export default function Menu({ menuType: propMenuType }) {
   const cartCount = countFor(menuType);
   const cartTotal = totalFor(menuType);
 
-  const heroTitle = menuType === "epicerie" ? "L'Épicerie" : "Le Restaurant";
+  const heroTitle = menuType === "epicerie" ? "L'Épicerie" : "Il Ristorante";
   const heroSub = menuType === "epicerie"
     ? "Produits d'exception, sélectionnés en Italie. À emporter ou livrés — jusqu'à 2 semaines à l'avance."
     : "Cuisine du marché, à emporter ou en livraison.";
+  const heroTag = menuType === "epicerie" ? "Bottega" : "Trattoria";
+  const accentClass = menuType === "epicerie" ? "bg-brand" : "bg-terracotta";
+  const accentTextClass = menuType === "epicerie" ? "text-brand" : "text-terracotta";
+  const accentBorderClass = menuType === "epicerie" ? "border-brand" : "border-terracotta";
 
   return (
     <PageTransition>
-      {/* HERO */}
-      <section className="pt-32 pb-8 bg-cream-surface border-b border-ink/5">
-        <div className="max-w-[1400px] mx-auto px-6 md:px-10">
-          <p className="text-xs tracking-[.4em] uppercase text-brand mb-4">Commander</p>
-          <h1 className="font-display text-5xl md:text-6xl mb-3">{heroTitle}</h1>
-          <p className="text-muted2 max-w-2xl">{heroSub}</p>
+      {/* HERO with editorial color */}
+      <section className="relative pt-32 pb-14 overflow-hidden">
+        <div className={`absolute inset-0 ${menuType === "epicerie" ? "bg-gradient-to-br from-brand/8 to-cream" : "bg-gradient-to-br from-terracotta/8 to-cream"}`} />
+        <div className="absolute top-24 right-8 md:right-16 font-display text-[10rem] md:text-[14rem] leading-none opacity-[.07] select-none">
+          {menuType === "epicerie" ? "Bottega" : "Menu"}
+        </div>
+        <div className="relative max-w-[1400px] mx-auto px-6 md:px-10">
+          <div className="flex items-center gap-4 mb-5">
+            <span className={`w-12 h-px ${menuType === "epicerie" ? "bg-brand" : "bg-terracotta"}`} />
+            <p className={`text-[11px] tracking-[.4em] uppercase ${accentTextClass}`}>{heroTag} · Angelucci's</p>
+          </div>
+          <h1 className="font-display text-6xl md:text-7xl lg:text-8xl mb-4 leading-[.95]">
+            {heroTitle}<span className={accentTextClass}>.</span>
+          </h1>
+          <p className="text-muted2 max-w-2xl text-lg">{heroSub}</p>
           {mode && mode.menu_type === menuType && (
-            <div className="mt-6 flex flex-wrap items-center gap-3 text-sm">
-              <span className="inline-flex items-center gap-2 bg-brand text-cream px-4 py-2">
+            <div className="mt-8 flex flex-wrap items-center gap-3 text-sm">
+              <span className={`inline-flex items-center gap-2 ${accentClass} text-cream px-4 py-2 text-[11px] tracking-widest uppercase`}>
                 {mode.fulfillment_type === "delivery" ? "Livraison" : "À emporter"}
               </span>
-              <span className="inline-flex items-center gap-2 border border-ink/20 px-4 py-2">
-                <Clock size={14} strokeWidth={1.5} /> {mode.pickup_time_label || "Dès que possible"}
+              <span className={`inline-flex items-center gap-2 border ${accentBorderClass}/40 px-4 py-2 text-[12px]`}>
+                <Clock size={13} strokeWidth={1.5} /> {mode.pickup_time_label || "Dès que possible"}
               </span>
-              <button onClick={() => setShowModePicker(true)} className="link-underline text-muted2" data-testid="change-mode-btn">Modifier</button>
+              <button onClick={() => setShowModePicker(true)} className="link-underline text-muted2 text-xs uppercase tracking-widest" data-testid="change-mode-btn">Modifier</button>
+              {menuType === "restaurant" && !openState.open && (
+                <span className="inline-flex items-center gap-2 border border-ochre/60 bg-ochre/15 text-[#8B6420] px-3 py-2 text-[11px] tracking-widest uppercase" data-testid="closed-banner">
+                  {openState.nextLabel || "Fermé"}
+                </span>
+              )}
             </div>
           )}
         </div>
       </section>
-
-      {/* NOT OPEN BANNER (restaurant only) */}
-      {menuType === "restaurant" && !openState.open && (
-        <div className="bg-ink text-cream text-center py-3 text-sm tracking-wide" data-testid="closed-banner">
-          {openState.nextLabel || "Restaurant fermé"}
-        </div>
-      )}
 
       {/* MAIN */}
       <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-12 pb-40 grid lg:grid-cols-[240px_1fr] gap-12">
@@ -127,12 +138,16 @@ export default function Menu({ menuType: propMenuType }) {
                 className="pl-9 bg-transparent border-ink/20 rounded-none focus-visible:ring-brand" />
             </div>
           </div>
+          <p className="text-[10px] tracking-[.3em] uppercase text-muted2 mb-3 hidden lg:block">Catégories</p>
           <ul className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible">
             <li><button onClick={() => setActiveCat(null)} data-testid="cat-all"
-              className={`w-full text-left px-3 py-2 text-sm tracking-wide transition-colors ${!activeCat ? "bg-ink text-cream" : "hover:bg-cream-surface"}`}>Tout</button></li>
-            {categories.map((c) => (
+              className={`w-full text-left px-3 py-2.5 text-sm tracking-wide transition-all border-l-2 ${!activeCat ? `${accentBorderClass} bg-cream-surface font-medium` : "border-transparent hover:border-ink/20 hover:bg-cream-surface/60"}`}>Tout</button></li>
+            {categories.map((c, i) => (
               <li key={c.id}><button onClick={() => setActiveCat(c.id)} data-testid={`cat-${c.id}`}
-                className={`w-full text-left px-3 py-2 text-sm tracking-wide whitespace-nowrap transition-colors ${activeCat===c.id ? "bg-ink text-cream" : "hover:bg-cream-surface"}`}>{c.name}</button></li>
+                className={`w-full text-left px-3 py-2.5 text-sm tracking-wide whitespace-nowrap transition-all border-l-2 flex items-center justify-between ${activeCat===c.id ? `${accentBorderClass} bg-cream-surface font-medium` : "border-transparent hover:border-ink/20 hover:bg-cream-surface/60"}`}>
+                <span>{c.name}</span>
+                <span className="text-[10px] text-muted2 tracking-widest">{String(i+1).padStart(2,"0")}</span>
+              </button></li>
             ))}
           </ul>
         </aside>
@@ -142,28 +157,37 @@ export default function Menu({ menuType: propMenuType }) {
           {grouped.length === 0 && (
             <p className="text-muted2">Aucun produit disponible pour le moment.</p>
           )}
-          {grouped.map(({ cat, items }) => (
+          {grouped.map(({ cat, items }, gi) => (
             <div key={cat.id} id={`cat-${cat.id}`}>
               <div className="flex items-baseline gap-4 mb-8">
+                <span className={`font-display text-2xl ${accentTextClass}`}>{String(gi+1).padStart(2,"0")}</span>
                 <h2 className="font-display text-3xl md:text-4xl">{cat.name}</h2>
                 <div className="flex-1 border-t border-ink/10" />
-                <span className="text-xs tracking-widest uppercase text-muted2">{items.length} produits</span>
+                <span className="text-[10px] tracking-widest uppercase text-muted2">{items.length} produits</span>
               </div>
-              <div className="grid sm:grid-cols-2 gap-6">
+              <div className="grid sm:grid-cols-2 gap-4 md:gap-6">
                 {items.map((p) => (
                   <button key={p.id} onClick={() => setSelectedProduct(p)} data-testid={`product-${p.id}`}
-                    className="group text-left bg-cream border border-ink/5 hover:border-brand/40 transition-colors overflow-hidden flex flex-row">
-                    {p.image_url && (
-                      <div className="w-32 sm:w-40 shrink-0 aspect-square overflow-hidden">
-                        <img src={mediaUrl(p.image_url)} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
+                    className={`group text-left bg-cream border border-ink/8 hover:border-terracotta hover:shadow-lg transition-all overflow-hidden flex flex-row relative`}>
+                    {p.image_url ? (
+                      <div className="w-32 sm:w-44 shrink-0 aspect-square overflow-hidden relative">
+                        <img src={mediaUrl(p.image_url)} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
+                      </div>
+                    ) : (
+                      <div className={`w-32 sm:w-44 shrink-0 aspect-square flex items-center justify-center ${menuType==="epicerie" ? "bg-brand/10" : "bg-terracotta/10"}`}>
+                        <span className={`font-display text-5xl ${accentTextClass}/50`}>A</span>
                       </div>
                     )}
-                    <div className="p-4 sm:p-5 flex-1">
-                      <h3 className="font-display text-xl mb-1">{p.name}</h3>
-                      <p className="text-sm text-muted2 line-clamp-2 mb-3">{p.description}</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-brand font-medium">{CHF(p.price)}</span>
-                        <span className="text-xs tracking-widest uppercase text-ink group-hover:text-brand transition-colors">Ajouter +</span>
+                    <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between">
+                      <div>
+                        <h3 className="font-display text-xl mb-1 leading-tight group-hover:text-terracotta transition-colors">{p.name}</h3>
+                        <p className="text-sm text-muted2 line-clamp-2 mb-3 leading-relaxed">{p.description}</p>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className={`font-medium ${accentTextClass}`}>{CHF(p.price)}</span>
+                        <span className="inline-flex items-center gap-1.5 text-[11px] tracking-[.2em] uppercase text-ink group-hover:text-terracotta transition-colors">
+                          <Plus size={14} strokeWidth={1.5} /> Ajouter
+                        </span>
                       </div>
                     </div>
                   </button>
@@ -192,20 +216,20 @@ export default function Menu({ menuType: propMenuType }) {
 
       {/* STICKY CART */}
       {cartCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-ink text-cream border-t border-brand" data-testid="sticky-cart">
+        <div className={`fixed bottom-0 left-0 right-0 z-40 bg-ink text-cream border-t-2 ${accentBorderClass}`} data-testid="sticky-cart">
           <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <ShoppingBag size={20} strokeWidth={1.5} />
+              <ShoppingBag size={20} strokeWidth={1.5} className={accentTextClass} />
               <span className="font-display text-2xl">{cartCount} article{cartCount > 1 ? "s" : ""}</span>
               <span className="hidden sm:inline text-cream/60">·</span>
-              <span className="hidden sm:inline text-brand">{CHF(cartTotal)}</span>
+              <span className={`hidden sm:inline ${accentTextClass}`}>{CHF(cartTotal)}</span>
             </div>
             <div className="flex items-center gap-3">
               <details className="hidden md:block">
                 <summary className="cursor-pointer text-sm tracking-widest uppercase link-underline">Voir le panier</summary>
               </details>
               <button onClick={() => setShowCheckout(true)} data-testid="open-checkout-btn"
-                className="bg-brand hover:bg-brand-hover text-cream px-6 py-3 text-sm tracking-widest uppercase transition-colors">
+                className={`${accentClass} hover:brightness-95 text-cream px-6 py-3 text-sm tracking-widest uppercase transition-all`}>
                 Commander · {CHF(cartTotal)}
               </button>
             </div>

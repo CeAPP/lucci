@@ -14,6 +14,15 @@ module.exports = {
           hover: "#6C908F",
           light: "#A8C4C3",
         },
+        terracotta: {
+          DEFAULT: "#C87456",
+          dark: "#A85B3F",
+          light: "#E8B5A0",
+        },
+        ochre: {
+          DEFAULT: "#D4A24C",
+          light: "#E8C88A",
+        },
         ink: "#1A1C18",
         cream: {
           DEFAULT: "#FDFBF7",

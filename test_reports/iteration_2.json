@@ -1,0 +1,29 @@
+{
+  "summary": "Frontend regression test for iteration 2 (visual/UX bug fixes: modal opacity, header solidity, footer restructure, ken-burns removal, Emergent badge removal, editorial redesign of Menu/Epicerie/Landing). All 14 requested checks PASS. Primary bug (text bleed-through inside OrderModePicker modal) is fully resolved — modal is now cream #FDFBF7 opaque with dark blurred overlay behind. Product modal and Checkout modal are also fully opaque. Closed banner appears as small inline chip inside hero (not full-width dark bar). Header is always solid cream with backdrop-blur (no transparent state). Footer confirmed 3 columns (Brand / Contact / Naviguer), no 'Horaires' block. index.html contains no 'Made with Emergent', no emergent.sh, no emergent-main.js. Landing hero image is static (no ken-burns). Owner login shows 8 tabs including 'Emails clients'; Staff shows 7 tabs without it. /commander uses terracotta accent + 'Menu' bg text; /epicerie uses sage/brand accent + 'Bottega' bg text.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Menu.jsx is ~360 lines and mixes ProductModal + Menu component + open-hours logic — consider extracting ProductModal and isOpenNow into their own files as this page grows.",
+    "Dialog overlay uses computed rgba(0,0,0,0) in DevTools because Tailwind arbitrary color bg-[#1A1C18]/92 compiles into a CSS var. Visual rendering is correct (verified by screenshots — the modal region is clearly darkened + blurred), so this is only a cosmetic note on how computed styles read.",
+    "OrderModePicker uses !bg-[#FDFBF7] with !important override — works, but a cleaner solution would be to update the shared DialogContent base to use a solid token like bg-cream instead of relying on !important overrides at each call site. The change was applied consistently and is not blocking."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (frontend-only iteration per request)", "frontend": "100% of the 14 requested checks"},
+  "test_credentials": "Owner: AngelCED26 / CE26$Lucc. Staff: AnCED25 / 26$LuANG. From /app/memory/test_credentials.md.",
+  "seed_data_creation": "Added 1 order (TEST_Product x1, CHF 12.50) during the order-flow smoke test. Left in DB; owner dashboard now shows 5 TEST_-prefixed orders total (accumulated across iterations).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iteration_2 verified: modal opacity fix (mode-picker, product-modal, checkout-modal all cream #FDFBF7), closed-banner is inline chip (not full-width bar), header always solid cream, footer 3 columns no Horaires, no Emergent badge/script/reference in HTML, Landing static image no ken-burns, terracotta accent on /commander, sage accent on /epicerie, admin owner vs staff tab gating still correct. Backend was untouched in this iteration and previous iteration_1 already covers full 25/25 pytest suite. Screenshots saved to /app/.screenshots/.",
+  "rca of the issue": "N/A — no bugs found in this iteration. Previous bug (text bleeding through OrderModePicker) confirmed resolved by combination of (a) Dialog overlay bg-[#1A1C18]/92 + backdrop-blur-sm, (b) DialogContent forced to !bg-[#FDFBF7], (c) moving the 'restaurant fermé' notice from a full-width dark bar into an inline chip inside the hero. Verified by screenshot analysis: mode picker sits fully opaque cream on top of blurred/darkened underlying page — no product names, category rail, or 'Ouvre à HH:MM' text visible within the modal box coordinates."
+}

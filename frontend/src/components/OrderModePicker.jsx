@@ -33,7 +33,7 @@ export default function OrderModePicker({ open, onOpenChange, menuType, schedule
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md bg-cream border-ink/10 rounded-none" data-testid="mode-picker">
+      <DialogContent className="max-w-md !bg-[#FDFBF7] border-ink/10 rounded-none" data-testid="mode-picker">
         <DialogTitle className="font-display text-3xl">Comment souhaitez-vous commander&nbsp;?</DialogTitle>
         <DialogDescription className="text-muted2">
           {isEpicerie ? "Vous pouvez commander jusqu'à 2 semaines à l'avance." : "Choisissez votre mode et votre créneau."}

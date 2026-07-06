@@ -14,41 +14,31 @@ const NAV = [
 
 export default function Header() {
   const [open, setOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const loc = useLocation();
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll);
-    onScroll();
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   useEffect(() => { setOpen(false); }, [loc.pathname]);
 
   return (
     <header
       data-testid="site-header"
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        scrolled ? "bg-cream/90 backdrop-blur-xl border-b border-ink/10" : "bg-transparent"
-      }`}
+      className="fixed top-0 left-0 right-0 z-50 bg-cream/95 backdrop-blur-xl border-b border-ink/10"
     >
       <div className="max-w-[1400px] mx-auto px-6 md:px-10 flex items-center justify-between h-20">
         <Link to="/" data-testid="header-logo" className="flex items-center gap-3 group">
           <img src={LOGO} alt="Angelucci's" className="h-14 w-14 object-contain" />
-          <span className="hidden sm:block font-display text-2xl tracking-widest text-ink group-hover:text-brand transition-colors">
+          <span className="hidden sm:block font-display text-2xl tracking-[.2em] text-ink group-hover:text-brand transition-colors">
             ANGELUCCI'S
           </span>
         </Link>
 
-        <nav className="hidden lg:flex items-center gap-10">
+        <nav className="hidden lg:flex items-center gap-9">
           {NAV.map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
               data-testid={`nav-${n.to.replace("/", "")}`}
               className={({ isActive }) =>
-                `text-sm tracking-wide uppercase link-underline transition-colors ${
+                `text-[13px] tracking-[.15em] uppercase link-underline transition-colors ${
                   isActive ? "text-brand" : "text-ink hover:text-brand"
                 }`
               }
