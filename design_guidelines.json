@@ -1,0 +1,108 @@
+{
+  "theme": "light",
+  "archetype": "Organic & Earthy + Luxury Hybrid",
+  "design_philosophy": "Warm, authentic Italian premium feel with editorial elegance. Avoids clinical pure white, relying on warm cream tones, stark black for contrast, and the brand's signature sage green for interaction and freshness.",
+  "colors": {
+    "primary": "#7FA9A8",
+    "primary_hover": "#6C908F",
+    "background": "#FDFBF7",
+    "surface": "#F5F2EA",
+    "surface_hover": "#EFEBE0",
+    "text_main": "#1A1C18",
+    "text_muted": "#5C6057",
+    "border": "rgba(26, 28, 24, 0.1)",
+    "error": "#991B1B",
+    "success": "#166534"
+  },
+  "typography": {
+    "heading_font": "Cormorant Garamond",
+    "body_font": "Manrope",
+    "scales": {
+      "h1": "text-5xl sm:text-6xl tracking-tight leading-none font-medium",
+      "h2": "text-3xl sm:text-4xl tracking-tight font-medium",
+      "h3": "text-2xl sm:text-3xl tracking-tight",
+      "body_lg": "text-lg leading-relaxed",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm tracking-wide uppercase"
+    }
+  },
+  "spacing_and_layout": {
+    "container_padding": "px-6 md:px-12 lg:px-24",
+    "section_gap": "py-24 md:py-32",
+    "card_padding": "p-6 md:p-8",
+    "border_radius": "rounded-none md:rounded-sm",
+    "grid_patterns": {
+      "hero": "grid-cols-1 lg:grid-cols-12 gap-8 items-center",
+      "menu_list": "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8",
+      "dashboard": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-[#7FA9A8] text-[#FDFBF7] hover:bg-[#6C908F] transition-all duration-300 rounded-none px-8 py-4 font-medium tracking-wide",
+      "secondary": "bg-transparent border border-[#1A1C18] text-[#1A1C18] hover:bg-[#1A1C18] hover:text-[#FDFBF7] transition-all duration-300 rounded-none px-8 py-4",
+      "ghost": "text-[#1A1C18] hover:text-[#7FA9A8] transition-colors"
+    },
+    "cards": {
+      "product": "bg-[#F5F2EA] border border-black/5 hover:border-[#7FA9A8]/30 transition-all duration-300 group overflow-hidden cursor-pointer",
+      "dashboard_widget": "bg-[#F5F2EA] border border-black/5 p-6 rounded-sm shadow-sm"
+    },
+    "navigation": {
+      "header": "fixed top-0 w-full z-50 bg-[#FDFBF7]/80 backdrop-blur-xl border-b border-black/5 transition-all",
+      "menu_sidebar": "sticky top-32 flex flex-col gap-2"
+    },
+    "modals": {
+      "product_detail": "bg-[#FDFBF7] rounded-none sm:rounded-sm max-w-4xl w-full p-0 overflow-hidden",
+      "overlay": "bg-black/40 backdrop-blur-sm"
+    }
+  },
+  "animations": {
+    "page_transition": "framer-motion fade-up with duration 0.6s and ease [0.22, 1, 0.36, 1]",
+    "hover_effects": "Subtle scale-up for images inside cards (group-hover:scale-105 duration-700 ease-out)",
+    "micro_interactions": "Staggered fade-in for menu list items"
+  },
+  "iconography": "lucide-react with thin stroke-width (1.5)",
+  "media": {
+    "logo": "https://customer-assets.emergentagent.com/job_pizzeria-app-26/artifacts/jwci5np5_LOgo%20angelucci.png",
+    "images": {
+      "hero_background": {
+        "url": "https://images.pexels.com/photos/14882031/pexels-photo-14882031.jpeg",
+        "description": "Warm luxury restaurant/bar interior",
+        "usage": "Landing page hero section background with bg-black/40 overlay"
+      },
+      "story_section": {
+        "url": "https://images.unsplash.com/photo-1607727536244-b3ab855fb209?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTN8MHwxfHNlYXJjaHwyfHxydXN0aWMlMjBpdGFsaWFuJTIwY291bnRyeXNpZGV8ZW58MHx8fHwxNzgyMDQwNzU0fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Rustic Italian countryside view",
+        "usage": "Background or side image for the 'Notre histoire' section"
+      },
+      "menu_pasta": {
+        "url": "https://images.pexels.com/photos/36445107/pexels-photo-36445107.jpeg",
+        "description": "Fresh pasta plate authentic",
+        "usage": "Restaurant menu category header or featured signature dish"
+      },
+      "grocery_olive_oil": {
+        "url": "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5",
+        "description": "Rustic olive oil bottle",
+        "usage": "Epicerie category header or featured grocery product"
+      }
+    }
+  },
+  "key_features_guidance": {
+    "checkout": "Use Shadcn forms. Clear summary of order with VAT separated (2.6% takeaway, 8.1% delivery). Checkbox for marketing opt-in.",
+    "reservation": "Use Shadcn Calendar. Grid of time slots (15m intervals). Honeypot field (hidden input) to prevent spam.",
+    "dashboard": "Hidden at /Angel/dashboard. Use Shadcn Tabs for horizontal navigation across sections (Orders, Reservations, Menu, etc.). Dense data layout (clear, function-first, high contrast black text on warm cream).",
+    "product_modal": "Large 2-column layout (image left, options right). Shadcn form components (Checkbox for addons, Stepper/Input for quantity, Textarea for comments)."
+  },
+  "accessibility": {
+    "testing_attributes": "All interactive elements MUST include data-testid. Example: data-testid='add-to-cart-btn'",
+    "contrast": "Ensure #7FA9A8 has sufficient contrast against #FDFBF7. When placing text on #7FA9A8, use #FDFBF7 or #1A1C18."
+  },
+  "instructions_to_main_agent": [
+    "Install dependencies: framer-motion, lucide-react, @fontsource/cormorant-garamond, @fontsource/manrope.",
+    "Configure Tailwind with the exact color hex codes provided in this JSON.",
+    "Build the UI prioritizing customized Shadcn components (strip Vercel look, adapt to the warm/flat print style using surface and background colors).",
+    "Use the exact logo URL provided.",
+    "For the admin dashboard, ensure it's accessible directly via /Angel/dashboard route.",
+    "Implement the Swiss VAT logic accurately (2.6% for takeaway, 8.1% for delivery) in the cart/checkout calculation."
+  ]
+}
