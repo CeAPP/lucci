@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { Toaster } from "sonner";
 import Header from "@/components/Header";
@@ -12,6 +12,7 @@ import OrderTracking from "@/pages/OrderTracking";
 import Cart from "@/pages/Cart";
 import AdminDashboard, { AdminLogin } from "@/pages/Admin";
 import { CartProvider } from "@/context/CartContext";
+import { TEMP_MODE } from "@/config";
 import "@/index.css";
 
 function AppRoutes() {
@@ -23,15 +24,25 @@ function AppRoutes() {
       <AnimatePresence mode="wait">
         <Routes location={loc} key={loc.pathname}>
           <Route path="/" element={<Landing />} />
-          <Route path="/commander" element={<Menu menuType="restaurant" />} />
-          <Route path="/epicerie" element={<Menu menuType="epicerie" />} />
-          <Route path="/reserver" element={<Reservation />} />
-          <Route path="/histoire" element={<Story />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/suivi/:id" element={<OrderTracking />} />
-          <Route path="/panier" element={<Cart />} />
-          <Route path="/Angel/login" element={<AdminLogin />} />
-          <Route path="/Angel/dashboard" element={<AdminDashboard />} />
+          {TEMP_MODE ? (
+            <>
+              <Route path="/Angel/login" element={<AdminLogin />} />
+              <Route path="/Angel/dashboard" element={<AdminDashboard />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </>
+          ) : (
+            <>
+              <Route path="/commander" element={<Menu menuType="restaurant" />} />
+              <Route path="/epicerie" element={<Menu menuType="epicerie" />} />
+              <Route path="/reserver" element={<Reservation />} />
+              <Route path="/histoire" element={<Story />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/suivi/:id" element={<OrderTracking />} />
+              <Route path="/panier" element={<Cart />} />
+              <Route path="/Angel/login" element={<AdminLogin />} />
+              <Route path="/Angel/dashboard" element={<AdminDashboard />} />
+            </>
+          )}
         </Routes>
       </AnimatePresence>
       {!isAdmin && <Footer />}

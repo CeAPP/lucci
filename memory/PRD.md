@@ -36,7 +36,19 @@ Full-stack website for Farmacia Angelucci (branded ANGELUCCI'S) — Italian rest
 - Email templates via Resend (order confirmation, reservation confirmation to client, notification to restaurant) — RESEND_API_KEY empty by default (logs skipped)
 - Pushover intentionally deferred (user request)
 
+## Implemented (2026-02 — Temporary Vitrine Mode)
+- Added `/app/frontend/src/config.js` with `TEMP_MODE` flag (currently `true`)
+- When `TEMP_MODE=true`: only `/` (Landing) and `/Angel/*` (Admin) are accessible; all other paths redirect to `/`
+- Header: navigation hidden, replaced by "Bientôt disponible" badge (no mobile menu)
+- Landing hero: "Commander" and "Réserver une table" buttons rendered as disabled visual pills
+- Landing sections: "Voir toute la carte" link, "Lire la suite" (story), "Confirmation immédiate" and dual category cards (Ristorante/Épicerie) all rendered as non-clickable divs with "Bientôt disponible" label
+- Footer: nav column removed, "Commander" CTA removed, replaced by "Commande en ligne — bientôt disponible" text
+- Removed "· dal 1962" text from Landing hero
+- Global contact email changed to `info@angeluccis.ch` (Footer fallback + backend seed default + updated existing DB settings doc)
+- To re-enable full site: flip `TEMP_MODE` to `false` in `/app/frontend/src/config.js`
+
 ## Backlog / Next
+- P1: Seed 5 real restaurant + 5 real épicerie products with `featured` flag for landing "Plats phares" (skipped for now — user to provide real names/prices)
 - P1: Stripe online payment (currently paiement sur place)
 - P1: Pushover push notifications (waiting on user)
 - P1: Real Resend API key hookup

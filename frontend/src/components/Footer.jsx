@@ -3,6 +3,7 @@ import { Phone, Mail, MapPin, ShoppingBag, ArrowRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { useCart } from "@/context/CartContext";
+import { TEMP_MODE } from "@/config";
 
 export default function Footer() {
   const [settings, setSettings] = useState({});
@@ -23,16 +24,20 @@ export default function Footer() {
           </p>
           <p className="text-xs text-cream/60 mt-3 tracking-widest uppercase">Farmacia Angelucci</p>
 
-          {/* Commander CTA */}
-          <Link to="/panier" data-testid="footer-commander"
-            className="mt-8 inline-flex items-center gap-3 bg-brand hover:bg-brand-hover text-cream px-6 py-3 text-[12px] tracking-[.2em] uppercase transition-colors">
-            <ShoppingBag size={16} strokeWidth={1.5} />
-            Commander
-            {totalCount > 0 && (
-              <span className="ml-1 bg-cream text-ink w-6 h-6 flex items-center justify-center text-xs">{totalCount}</span>
-            )}
-            <ArrowRight size={14} strokeWidth={1.5} />
-          </Link>
+          {!TEMP_MODE && (
+            <Link to="/panier" data-testid="footer-commander"
+              className="mt-8 inline-flex items-center gap-3 bg-brand hover:bg-brand-hover text-cream px-6 py-3 text-[12px] tracking-[.2em] uppercase transition-colors">
+              <ShoppingBag size={16} strokeWidth={1.5} />
+              Commander
+              {totalCount > 0 && (
+                <span className="ml-1 bg-cream text-ink w-6 h-6 flex items-center justify-center text-xs">{totalCount}</span>
+              )}
+              <ArrowRight size={14} strokeWidth={1.5} />
+            </Link>
+          )}
+          {TEMP_MODE && (
+            <p className="mt-8 text-xs tracking-[.25em] uppercase text-cream/50">Commande en ligne — bientôt disponible</p>
+          )}
         </div>
 
         <div>
@@ -50,23 +55,25 @@ export default function Footer() {
             </li>
             <li className="flex items-center gap-3">
               <Mail size={16} strokeWidth={1.5} />
-              <a href={`mailto:${settings.email}`} className="link-underline">
-                {settings.email || "toni@angeluccis.com"}
+              <a href={`mailto:${settings.email || "info@angeluccis.ch"}`} className="link-underline" data-testid="footer-email">
+                {settings.email || "info@angeluccis.ch"}
               </a>
             </li>
           </ul>
         </div>
 
-        <div>
-          <h4 className="text-xs tracking-[.25em] uppercase text-brand mb-4">Naviguer</h4>
-          <ul className="space-y-2 text-sm">
-            <li><Link to="/commander" className="link-underline">Commander (Restaurant)</Link></li>
-            <li><Link to="/epicerie" className="link-underline">Commander (Épicerie)</Link></li>
-            <li><Link to="/reserver" className="link-underline">Réserver une table</Link></li>
-            <li><Link to="/histoire" className="link-underline">Notre histoire</Link></li>
-            <li><Link to="/contact" className="link-underline">Contact</Link></li>
-          </ul>
-        </div>
+        {!TEMP_MODE && (
+          <div>
+            <h4 className="text-xs tracking-[.25em] uppercase text-brand mb-4">Naviguer</h4>
+            <ul className="space-y-2 text-sm">
+              <li><Link to="/commander" className="link-underline">Commander (Restaurant)</Link></li>
+              <li><Link to="/epicerie" className="link-underline">Commander (Épicerie)</Link></li>
+              <li><Link to="/reserver" className="link-underline">Réserver une table</Link></li>
+              <li><Link to="/histoire" className="link-underline">Notre histoire</Link></li>
+              <li><Link to="/contact" className="link-underline">Contact</Link></li>
+            </ul>
+          </div>
+        )}
       </div>
       <div className="border-t border-cream/10 py-6 text-center text-xs text-cream/50 tracking-wider">
         © {new Date().getFullYear()} Farmacia Angelucci — Lausanne

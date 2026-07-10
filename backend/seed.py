@@ -7,7 +7,7 @@ DEFAULT_SETTINGS = {
     "_id": "settings",
     "restaurant_name": "Farmacia Angelucci",
     "phone": "+41 79 706 39 66",
-    "email": "toni@angeluccis.com",
+    "email": "info@angeluccis.ch",
     "address": "Av. William-Fraisse 1, 1006 Lausanne",
     "vat_takeaway": 0.026,
     "vat_delivery": 0.081,

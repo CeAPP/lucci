@@ -1,6 +1,7 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
+import { TEMP_MODE } from "@/config";
 
 const LOGO = "https://customer-assets.emergentagent.com/job_pizzeria-app-26/artifacts/jwci5np5_LOgo%20angelucci.png";
 
@@ -31,34 +32,47 @@ export default function Header() {
           </span>
         </Link>
 
-        <nav className="hidden lg:flex items-center gap-9">
-          {NAV.map((n) => (
-            <NavLink
-              key={n.to}
-              to={n.to}
-              data-testid={`nav-${n.to.replace("/", "")}`}
-              className={({ isActive }) =>
-                `text-[13px] tracking-[.15em] uppercase link-underline transition-colors ${
-                  isActive ? "text-terracotta" : "text-ink hover:text-terracotta"
-                }`
-              }
-            >
-              {n.label}
-            </NavLink>
-          ))}
-        </nav>
+        {!TEMP_MODE && (
+          <nav className="hidden lg:flex items-center gap-9">
+            {NAV.map((n) => (
+              <NavLink
+                key={n.to}
+                to={n.to}
+                data-testid={`nav-${n.to.replace("/", "")}`}
+                className={({ isActive }) =>
+                  `text-[13px] tracking-[.15em] uppercase link-underline transition-colors ${
+                    isActive ? "text-terracotta" : "text-ink hover:text-terracotta"
+                  }`
+                }
+              >
+                {n.label}
+              </NavLink>
+            ))}
+          </nav>
+        )}
 
-        <button
-          data-testid="mobile-menu-btn"
-          className="lg:hidden text-ink"
-          onClick={() => setOpen((v) => !v)}
-          aria-label="Menu"
-        >
-          {open ? <X size={26} strokeWidth={1.5} /> : <Menu size={26} strokeWidth={1.5} />}
-        </button>
+        {TEMP_MODE && (
+          <span
+            data-testid="header-coming-soon"
+            className="hidden md:inline-block text-[10px] tracking-[.3em] uppercase text-terracotta border border-terracotta/40 px-3 py-1.5"
+          >
+            Bientôt disponible
+          </span>
+        )}
+
+        {!TEMP_MODE && (
+          <button
+            data-testid="mobile-menu-btn"
+            className="lg:hidden text-ink"
+            onClick={() => setOpen((v) => !v)}
+            aria-label="Menu"
+          >
+            {open ? <X size={26} strokeWidth={1.5} /> : <Menu size={26} strokeWidth={1.5} />}
+          </button>
+        )}
       </div>
 
-      {open && (
+      {open && !TEMP_MODE && (
         <div data-testid="mobile-menu" className="lg:hidden bg-cream border-t border-ink/10">
           <div className="flex flex-col p-6 gap-5">
             {NAV.map((n) => (
