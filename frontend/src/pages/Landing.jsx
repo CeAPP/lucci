@@ -222,13 +222,13 @@ export default function Landing() {
             <Phone size={22} strokeWidth={1.5} className="mb-3 lg:mb-4 text-brand" />
             <p className="text-[10px] tracking-[.3em] uppercase text-cream/60 mb-2">Téléphone</p>
             <a href={`tel:${(settings.phone || "").replace(/\s/g, "")}`} className="font-display text-xl lg:text-2xl link-underline">
-              {settings.phone || "079 706 39 66"}
+              {settings.phone || "+41 79 706 39 66"}
             </a>
           </motion.div>
           <motion.div {...fadeUp} transition={{ delay: 0.2, duration: 0.8 }} className="border-l-2 border-terracotta pl-5 lg:pl-6">
             <UtensilsCrossed size={22} strokeWidth={1.5} className="mb-3 lg:mb-4 text-terracotta" />
             <p className="text-[10px] tracking-[.3em] uppercase text-cream/60 mb-2">Réserver</p>
-            <Link to="/reserver" className="font-display text-xl lg:text-2xl link-underline">Confirmation immédiate</Link>
+            <Link to="/reserver" className="font-display text-xl lg:text-2xl link-underline">Réserver votre place</Link>
           </motion.div>
         </div>
         <div className="max-w-[1400px] mx-auto px-6 md:px-10">
