@@ -6,18 +6,24 @@ export const useCart = () => useContext(CartCtx);
 const KEY = "angel_cart_v1";
 const MODE_KEY = "angel_mode_v1";
 
-export function CartProvider({ children }) {
-  const [cart, setCart] = useState({ restaurant: [], epicerie: [] });
-  const [mode, setMode] = useState(null); // {menu_type, fulfillment_type, pickup_time}
+const readCart = () => {
+  try {
+    const c = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (c && typeof c === "object" && Array.isArray(c.restaurant) && Array.isArray(c.epicerie)) return c;
+  } catch (e) { /* noop */ }
+  return { restaurant: [], epicerie: [] };
+};
+const readMode = () => {
+  try {
+    const m = JSON.parse(localStorage.getItem(MODE_KEY) || "null");
+    if (m && typeof m === "object") return m;
+  } catch (e) { /* noop */ }
+  return null;
+};
 
-  useEffect(() => {
-    try {
-      const c = JSON.parse(localStorage.getItem(KEY) || "null");
-      if (c) setCart(c);
-      const m = JSON.parse(localStorage.getItem(MODE_KEY) || "null");
-      if (m) setMode(m);
-    } catch (e) { /* noop */ }
-  }, []);
+export function CartProvider({ children }) {
+  const [cart, setCart] = useState(readCart);
+  const [mode, setMode] = useState(readMode);
 
   useEffect(() => { localStorage.setItem(KEY, JSON.stringify(cart)); }, [cart]);
   useEffect(() => { if (mode) localStorage.setItem(MODE_KEY, JSON.stringify(mode)); }, [mode]);
