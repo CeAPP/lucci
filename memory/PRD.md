@@ -38,13 +38,12 @@ Full-stack website for Farmacia Angelucci (branded ANGELUCCI'S) — Italian rest
 
 ## Implemented (2026-02 — Temporary Vitrine Mode)
 - Added `/app/frontend/src/config.js` with `TEMP_MODE` flag (currently `true`)
-- When `TEMP_MODE=true`: only `/` (Landing) and `/Angel/*` (Admin) are accessible; all other paths redirect to `/`
-- Header: navigation hidden, replaced by "Bientôt disponible" badge (no mobile menu)
-- Landing hero: "Commander" and "Réserver une table" buttons rendered as disabled visual pills
-- Landing sections: "Voir toute la carte" link, "Lire la suite" (story), "Confirmation immédiate" and dual category cards (Ristorante/Épicerie) all rendered as non-clickable divs with "Bientôt disponible" label
-- Footer: nav column removed, "Commander" CTA removed, replaced by "Commande en ligne — bientôt disponible" text
+- When `TEMP_MODE=true`: only `/` (Landing) and `/Angel/*` (Admin) are accessible; all other paths redirect to `/` via App.js `<Navigate>`
+- UI kept intact — Header nav, Footer nav+CTA, hero buttons "Commander" / "Réserver une table", category cards, etc. all look normal
+- Clicking any link on the site silently redirects to the landing (no page ever loads besides landing + admin)
 - Removed "· dal 1962" text from Landing hero
 - Global contact email changed to `info@angeluccis.ch` (Footer fallback + backend seed default + updated existing DB settings doc)
+- **Mobile responsive fix**: rewrote Landing hero (mobile shows centered logo → text → CTAs → image, no absolute-positioned overlap); scaled down all section paddings/typography for mobile; single-column stacked layouts; address+phone stacked
 - To re-enable full site: flip `TEMP_MODE` to `false` in `/app/frontend/src/config.js`
 
 ## Backlog / Next
