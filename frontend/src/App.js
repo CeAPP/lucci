@@ -26,6 +26,10 @@ function AppRoutes() {
           <Route path="/" element={<Landing />} />
           {TEMP_MODE ? (
             <>
+              <Route path="/commander" element={<Menu menuType="restaurant" />} />
+              <Route path="/epicerie" element={<Menu menuType="epicerie" />} />
+              <Route path="/panier" element={<Cart />} />
+              <Route path="/suivi/:id" element={<OrderTracking />} />
               <Route path="/Angel/login" element={<AdminLogin />} />
               <Route path="/Angel/dashboard" element={<AdminDashboard />} />
               <Route path="*" element={<Navigate to="/" replace />} />

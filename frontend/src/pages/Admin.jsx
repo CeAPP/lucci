@@ -122,7 +122,7 @@ function OrdersTab({ ping }) {
   const filtered = orders.filter((o) => filter === "all" || o.status === filter);
 
   const advance = async (o) => {
-    const flow = ["new", "preparing", "ready", "handed", "done"];
+    const flow = ["new", "preparing", "ready", "done"];
     const next = flow[Math.min(flow.length - 1, flow.indexOf(o.status) + 1)];
     await api.patch(`/admin/orders/${o.id}/status`, null, { params: { status: next } });
     load();
@@ -130,17 +130,23 @@ function OrdersTab({ ping }) {
   const del = async (o) => { if (!confirm("Supprimer ?")) return; await api.delete(`/admin/orders/${o.id}`); load(); };
 
   const STATUS_CFG = {
-    new: { label: "Nouvelle", color: "bg-brand text-cream" },
+    new: { label: "En attente de confirmation", color: "bg-brand text-cream" },
     preparing: { label: "En préparation", color: "bg-amber-600 text-cream" },
-    ready: { label: "Prête", color: "bg-emerald-700 text-cream" },
-    handed: { label: "Remise", color: "bg-ink text-cream" },
-    done: { label: "Terminée", color: "bg-ink/40 text-cream" },
+    ready: { label: "Prêt", color: "bg-emerald-700 text-cream" },
+    done: { label: "Terminé", color: "bg-ink/40 text-cream" },
+  };
+
+  const fmtDT = (iso) => {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString("fr-CH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    } catch { return iso || ""; }
   };
 
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-6">
-        {["all", "new", "preparing", "ready", "handed", "done"].map((s) => (
+        {["all", "new", "preparing", "ready", "done"].map((s) => (
           <button key={s} onClick={() => setFilter(s)} data-testid={`filter-${s}`}
             className={`px-4 py-2 text-xs tracking-widest uppercase border transition-colors ${filter===s ? "bg-ink text-cream border-ink" : "border-ink/20 hover:border-brand"}`}>
             {s === "all" ? "Toutes" : STATUS_CFG[s].label} ({s === "all" ? orders.length : orders.filter((o) => o.status === s).length})
@@ -149,23 +155,32 @@ function OrdersTab({ ping }) {
       </div>
       {filtered.length === 0 && <p className="text-muted2">Aucune commande.</p>}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map((o) => (
+        {filtered.map((o) => {
+          const isEpicerie = o.menu_type === "epicerie";
+          return (
           <div key={o.id} className="border border-ink/10 bg-cream p-5" data-testid={`order-card-${o.id}`}>
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <span className={`inline-block text-[10px] tracking-widest uppercase px-2 py-1 mb-2 ${STATUS_CFG[o.status].color}`}>{STATUS_CFG[o.status].label}</span>
-                <p className="font-display text-xl">{o.customer.first_name} {o.customer.last_name}</p>
-                <a href={`tel:${o.customer.phone.replace(/\s/g,"")}`} className="text-brand text-lg link-underline flex items-center gap-1">
-                  <Phone size={14} /> {o.customer.phone}
-                </a>
-              </div>
-              <p className="text-right text-xs text-muted2">#{o.order_number}</p>
+            {/* Big menu type banner */}
+            <div className={`-mx-5 -mt-5 mb-4 px-5 py-3 flex items-center justify-between ${isEpicerie ? "bg-brand text-cream" : "bg-terracotta text-cream"}`}>
+              <span className="font-display text-2xl tracking-[.15em] uppercase" data-testid={`order-menutype-${o.id}`}>
+                {isEpicerie ? "ÉPICERIE" : "RESTAURANT"}
+              </span>
+              <span className="text-xs opacity-80">#{o.order_number}</span>
             </div>
 
+            <span className={`inline-block text-[10px] tracking-widest uppercase px-2 py-1 mb-3 ${STATUS_CFG[o.status].color}`}>{STATUS_CFG[o.status].label}</span>
+            <p className="font-display text-xl">{o.customer.first_name} {o.customer.last_name}</p>
+            <a href={`tel:${o.customer.phone.replace(/\s/g,"")}`} className="text-brand text-lg link-underline flex items-center gap-1">
+              <Phone size={14} /> {o.customer.phone}
+            </a>
+
             <div className="my-3 p-2.5 bg-brand/10 border border-brand text-center">
-              <p className="text-[10px] tracking-widest uppercase text-brand">Créneau · {o.fulfillment_type === "delivery" ? "Livraison" : "À emporter"}</p>
-              <p className="font-display text-lg">{o.pickup_time_label}</p>
+              <p className="text-[10px] tracking-widest uppercase text-brand">Créneau de retrait</p>
+              <p className="font-display text-lg" data-testid={`order-pickup-${o.id}`}>{o.pickup_time_label}</p>
             </div>
+
+            <p className="text-xs text-muted2 mb-3" data-testid={`order-created-${o.id}`}>
+              Commande passée le <strong className="text-ink">{fmtDT(o.created_at)}</strong>
+            </p>
 
             <div className="text-xs bg-amber-100 text-amber-900 px-2 py-1 mb-3 inline-block">💵 À payer sur place</div>
 
@@ -200,7 +215,8 @@ function OrdersTab({ ping }) {
                 className="rounded-none border-ink/20 h-9 px-3"><Trash2 size={14} /></Button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -575,29 +591,182 @@ function HoursTab() {
 // =========== PROMOS TAB ===========
 function PromosTab() {
   const [items, setItems] = useState([]);
-  const [n, setN] = useState({ code: "", type: "percent", value: 10, min_amount: 0, active: true });
-  const load = async () => { const { data } = await api.get("/admin/promos"); setItems(data); };
+  const [products, setProducts] = useState([]);
+  const [n, setN] = useState({
+    code: "",
+    type: "percent",
+    value: 10,
+    min_amount: 0,
+    scope: "all",
+    product_id: null,
+    active: true,
+  });
+  const load = async () => {
+    const [pr, pd] = await Promise.all([
+      api.get("/admin/promos"),
+      api.get("/products/all"),
+    ]);
+    setItems(pr.data);
+    setProducts(pd.data);
+  };
   useEffect(() => { load(); }, []);
-  const create = async () => { await api.post("/admin/promos", n); toast.success("Créé"); setN({ code: "", type: "percent", value: 10, min_amount: 0, active: true }); load(); };
-  const del = async (p) => { if (!confirm("?")) return; await api.delete(`/admin/promos/${p.id}`); load(); };
+  const create = async () => {
+    if (n.scope === "product" && !n.product_id) {
+      toast.error("Choisissez un produit");
+      return;
+    }
+    if (n.type !== "bogo" && (!n.value || n.value <= 0)) {
+      toast.error("Valeur invalide");
+      return;
+    }
+    const payload = {
+      ...n,
+      code: (n.code || "").toUpperCase().trim(),
+      product_id: n.scope === "product" ? n.product_id : null,
+    };
+    await api.post("/admin/promos", payload);
+    toast.success(payload.code ? `Code ${payload.code} créé` : "Promotion auto créée");
+    setN({ code: "", type: "percent", value: 10, min_amount: 0, scope: "all", product_id: null, active: true });
+    load();
+  };
+  const del = async (p) => { if (!confirm("Supprimer cette promotion ?")) return; await api.delete(`/admin/promos/${p.id}`); load(); };
+  const toggle = async (p) => { await api.patch(`/admin/promos/${p.id}`, null, { params: { active: !p.active } }); load(); };
+
+  const productName = (pid) => products.find((p) => p.id === pid)?.name || "?";
+  const typeLabel = (t) => t === "percent" ? "% remise" : t === "fixed" ? "CHF remise" : "1 acheté = 1 offert";
+
   return (
     <div>
-      <div className="border border-ink/10 bg-cream p-4 mb-6 grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Input placeholder="Code" value={n.code} onChange={(e) => setN({...n, code: e.target.value.toUpperCase()})} className="rounded-none bg-transparent border-ink/20" />
-        <select value={n.type} onChange={(e) => setN({...n, type: e.target.value})} className="border border-ink/20 px-3 py-2 bg-transparent">
-          <option value="percent">Pourcentage</option><option value="fixed">Montant fixe</option>
-        </select>
-        <Input type="number" placeholder="Valeur" value={n.value} onChange={(e) => setN({...n, value: parseFloat(e.target.value)||0})} className="rounded-none bg-transparent border-ink/20" />
-        <Input type="number" placeholder="Seuil (CHF)" value={n.min_amount} onChange={(e) => setN({...n, min_amount: parseFloat(e.target.value)||0})} className="rounded-none bg-transparent border-ink/20" />
-        <Button onClick={create} className="bg-brand hover:bg-brand-hover text-cream rounded-none uppercase tracking-widest">Créer</Button>
+      {/* CREATE FORM */}
+      <div className="border border-ink/10 bg-cream p-5 mb-6">
+        <p className="text-xs tracking-[.3em] uppercase text-brand mb-4">Nouvelle promotion</p>
+
+        {/* Scope */}
+        <div className="mb-4">
+          <Label className="text-xs tracking-widest uppercase mb-2 block">Portée</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <button data-testid="promo-scope-all"
+              onClick={() => setN({ ...n, scope: "all", product_id: null })}
+              className={`border p-3 text-left ${n.scope === "all" ? "border-brand bg-brand/10" : "border-ink/20"}`}>
+              <p className="text-sm font-medium">Tout le site</p>
+              <p className="text-xs text-muted2">S&apos;applique à toutes les commandes</p>
+            </button>
+            <button data-testid="promo-scope-product"
+              onClick={() => setN({ ...n, scope: "product" })}
+              className={`border p-3 text-left ${n.scope === "product" ? "border-brand bg-brand/10" : "border-ink/20"}`}>
+              <p className="text-sm font-medium">Un produit spécifique</p>
+              <p className="text-xs text-muted2">S&apos;applique à un seul produit</p>
+            </button>
+          </div>
+        </div>
+
+        {n.scope === "product" && (
+          <div className="mb-4">
+            <Label className="text-xs tracking-widest uppercase">Produit</Label>
+            <select value={n.product_id || ""} onChange={(e) => setN({ ...n, product_id: e.target.value })}
+              data-testid="promo-product-select"
+              className="w-full border border-ink/20 px-3 py-2 bg-transparent mt-1.5">
+              <option value="">— Choisir un produit —</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>{p.name} · {p.menu_type} · {CHF(p.price)}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Type */}
+        <div className="mb-4">
+          <Label className="text-xs tracking-widest uppercase mb-2 block">Type de remise</Label>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { v: "percent", label: "Pourcentage" },
+              { v: "fixed", label: "Montant fixe" },
+              { v: "bogo", label: "1 acheté = 1 offert" },
+            ].map((t) => (
+              <button key={t.v} data-testid={`promo-type-${t.v}`}
+                onClick={() => setN({ ...n, type: t.v })}
+                className={`border p-2.5 text-sm ${n.type === t.v ? "border-brand bg-brand/10" : "border-ink/20"}`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Value */}
+        {n.type !== "bogo" && (
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div>
+              <Label className="text-xs tracking-widest uppercase">
+                {n.type === "percent" ? "Pourcentage (%)" : "Montant (CHF)"}
+              </Label>
+              <Input type="number" step="0.1" value={n.value}
+                onChange={(e) => setN({ ...n, value: parseFloat(e.target.value) || 0 })}
+                data-testid="promo-value"
+                className="rounded-none bg-transparent border-ink/20 mt-1.5" />
+            </div>
+            <div>
+              <Label className="text-xs tracking-widest uppercase">Seuil min. (CHF)</Label>
+              <Input type="number" step="1" value={n.min_amount}
+                onChange={(e) => setN({ ...n, min_amount: parseFloat(e.target.value) || 0 })}
+                data-testid="promo-min"
+                className="rounded-none bg-transparent border-ink/20 mt-1.5" />
+            </div>
+          </div>
+        )}
+
+        {/* Code (optional) */}
+        <div className="mb-4">
+          <Label className="text-xs tracking-widest uppercase">Code (optionnel)</Label>
+          <Input value={n.code}
+            onChange={(e) => setN({ ...n, code: e.target.value.toUpperCase() })}
+            placeholder="Ex : ETE25 — laisser vide pour appliquer automatiquement"
+            data-testid="promo-code-input"
+            className="rounded-none bg-transparent border-ink/20 mt-1.5" />
+          <p className="text-xs text-muted2 mt-1.5">
+            {n.code
+              ? "Le client devra saisir ce code pour bénéficier de la promotion."
+              : "Aucun code — la promotion s'applique automatiquement à chaque commande éligible."}
+          </p>
+        </div>
+
+        <Button onClick={create} data-testid="promo-create-btn"
+          className="bg-brand hover:bg-brand-hover text-cream rounded-none uppercase tracking-widest">
+          Créer la promotion
+        </Button>
       </div>
+
+      {/* LIST */}
       <div className="space-y-2">
+        {items.length === 0 && <p className="text-muted2 text-sm">Aucune promotion active.</p>}
         {items.map((p) => (
-          <div key={p.id} className="border border-ink/10 bg-cream p-3 flex items-center gap-3">
-            <span className="font-mono text-brand">{p.code}</span>
-            <span className="text-sm text-muted2">{p.type === "percent" ? `${p.value}%` : CHF(p.value)}</span>
-            {p.min_amount > 0 && <span className="text-xs text-muted2">min {CHF(p.min_amount)}</span>}
-            <Button variant="outline" size="sm" onClick={() => del(p)} className="ml-auto rounded-none border-ink/20"><Trash2 size={12}/></Button>
+          <div key={p.id} className={`border p-4 flex flex-wrap items-center gap-3 ${p.active ? "border-brand/40 bg-cream" : "border-ink/10 bg-cream/50 opacity-60"}`}
+            data-testid={`promo-item-${p.id}`}>
+            <div className="flex-1 min-w-[240px]">
+              <div className="flex items-center gap-2 mb-1">
+                {p.code ? (
+                  <span className="font-mono text-brand text-lg">{p.code}</span>
+                ) : (
+                  <span className="text-xs tracking-widest uppercase bg-emerald-700 text-cream px-2 py-1">Auto</span>
+                )}
+                <span className={`text-[10px] tracking-widest uppercase px-2 py-0.5 ${p.active ? "bg-brand text-cream" : "bg-ink/30 text-cream"}`}>
+                  {p.active ? "Active" : "Désactivée"}
+                </span>
+              </div>
+              <p className="text-sm">
+                {p.type === "bogo"
+                  ? "1 acheté = 1 offert"
+                  : p.type === "percent"
+                    ? `${p.value}% de remise`
+                    : `${CHF(p.value)} de remise`}
+                {" · "}
+                {p.scope === "product" ? `sur ${productName(p.product_id)}` : "sur tout le site"}
+                {p.min_amount > 0 && ` · dès ${CHF(p.min_amount)} d'achat`}
+              </p>
+            </div>
+            <Button size="sm" onClick={() => toggle(p)} className={`rounded-none text-xs uppercase ${p.active ? "bg-ink text-cream" : "bg-emerald-700 text-cream"}`}>
+              {p.active ? "Désactiver" : "Activer"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => del(p)} className="rounded-none border-ink/20"><Trash2 size={14}/></Button>
           </div>
         ))}
       </div>
@@ -693,7 +862,6 @@ function SettingsTab() {
         <div><Label>Email</Label><Input value={s.email} onChange={(e) => setS({...s, email: e.target.value})} className="rounded-none bg-transparent border-ink/20" /></div>
         <div><Label>Adresse</Label><Input value={s.address} onChange={(e) => setS({...s, address: e.target.value})} className="rounded-none bg-transparent border-ink/20" /></div>
         <div><Label>TVA emporter</Label><Input type="number" step="0.001" value={s.vat_takeaway} onChange={(e) => setS({...s, vat_takeaway: parseFloat(e.target.value)})} className="rounded-none bg-transparent border-ink/20" /></div>
-        <div><Label>TVA livraison</Label><Input type="number" step="0.001" value={s.vat_delivery} onChange={(e) => setS({...s, vat_delivery: parseFloat(e.target.value)})} className="rounded-none bg-transparent border-ink/20" /></div>
         <div><Label>Temps de préparation (min)</Label><Input type="number" step="1" value={s.preparation_time_minutes || 30} onChange={(e) => setS({...s, preparation_time_minutes: parseInt(e.target.value) || 30})} data-testid="prep-time-input" className="rounded-none bg-transparent border-ink/20" /></div>
       </div>
       <label className="flex items-center gap-3"><Switch checked={s.orders_enabled} onCheckedChange={(v) => setS({...s, orders_enabled: v})} /> Commandes activées</label>

@@ -84,7 +84,7 @@ export default function Menu({ menuType: propMenuType }) {
   const heroTitle = menuType === "epicerie" ? "L'Épicerie" : "Il Ristorante";
   const heroSub = menuType === "epicerie"
     ? "Produits d'exception, sélectionnés en Italie. À emporter ou livrés — jusqu'à 2 semaines à l'avance."
-    : "Cuisine du marché, à emporter ou en livraison.";
+    : "Cuisine du marché, à emporter.";
   const heroTag = menuType === "epicerie" ? "Bottega" : "Trattoria";
   const accentClass = menuType === "epicerie" ? "bg-brand" : "bg-terracotta";
   const accentTextClass = menuType === "epicerie" ? "text-brand" : "text-terracotta";
@@ -110,7 +110,7 @@ export default function Menu({ menuType: propMenuType }) {
           {mode && mode.menu_type === menuType && (
             <div className="mt-8 flex flex-wrap items-center gap-3 text-sm">
               <span className={`inline-flex items-center gap-2 ${accentClass} text-cream px-4 py-2 text-[11px] tracking-widest uppercase`}>
-                {mode.fulfillment_type === "delivery" ? "Livraison" : "À emporter"}
+                {mode.fulfillment_type === "delivery" ? "À emporter" : "À emporter"}
               </span>
               <span className={`inline-flex items-center gap-2 border ${accentBorderClass}/40 px-4 py-2 text-[12px]`}>
                 <Clock size={13} strokeWidth={1.5} /> {mode.pickup_time_label || "Dès que possible"}

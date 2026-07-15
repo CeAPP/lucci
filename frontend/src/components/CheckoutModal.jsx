@@ -14,11 +14,11 @@ export default function CheckoutModal({ open, onOpenChange, menuType, onSuccess 
   const { cart, mode, totalFor } = useCart();
   const items = cart[menuType] || [];
   const subtotal = totalFor(menuType);
-  const vatRate = mode?.fulfillment_type === "delivery" ? 0.081 : 0.026;
+  const vatRate = 0.026;
 
   const [form, setForm] = useState({
     first_name: "", last_name: "", phone: "", email: "",
-    address: "", marketing_opt_in: false, promo_code: "",
+    marketing_opt_in: false, promo_code: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -31,20 +31,16 @@ export default function CheckoutModal({ open, onOpenChange, menuType, onSuccess 
       setError("Merci de remplir tous les champs requis.");
       return;
     }
-    if (mode?.fulfillment_type === "delivery" && !form.address) {
-      setError("L'adresse est requise pour la livraison.");
-      return;
-    }
     setLoading(true);
     try {
       const payload = {
         menu_type: menuType,
-        fulfillment_type: mode?.fulfillment_type || "takeaway",
+        fulfillment_type: "takeaway",
         pickup_time: mode?.pickup_time || "ASAP",
         customer: {
           first_name: form.first_name, last_name: form.last_name,
           phone: form.phone, email: form.email,
-          address: form.address, postal_code: mode?.postal_code || "",
+          address: "", postal_code: "",
           marketing_opt_in: form.marketing_opt_in,
         },
         items: items.map(({ _uid, ...rest }) => rest),
@@ -105,11 +101,6 @@ export default function CheckoutModal({ open, onOpenChange, menuType, onSuccess 
             <div><Label className="text-xs tracking-widest uppercase">Email *</Label>
               <Input type="email" value={form.email} onChange={on("email")} data-testid="checkout-email"
                 className="bg-transparent border-ink/20 rounded-none focus-visible:ring-brand mt-1.5" /></div>
-            {mode?.fulfillment_type === "delivery" && (
-              <div className="col-span-2"><Label className="text-xs tracking-widest uppercase">Adresse de livraison *</Label>
-                <Textarea value={form.address} onChange={on("address")} rows={2} data-testid="checkout-address"
-                  className="bg-transparent border-ink/20 rounded-none focus-visible:ring-brand mt-1.5" /></div>
-            )}
             <div className="col-span-2"><Label className="text-xs tracking-widest uppercase">Code promo (optionnel)</Label>
               <Input value={form.promo_code} onChange={on("promo_code")} data-testid="checkout-promo"
                 className="bg-transparent border-ink/20 rounded-none focus-visible:ring-brand mt-1.5" /></div>

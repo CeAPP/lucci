@@ -1,9 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Clock, Package, Truck, AlertTriangle, ChevronRight, Check } from "lucide-react";
+import { Clock, Package, AlertTriangle, ChevronRight } from "lucide-react";
 import api from "@/lib/api";
 
 const dayLabel = (date, todayStr) => {
@@ -27,11 +25,9 @@ function genSlots(startH, endH) {
 }
 
 export default function OrderModePicker({ open, onOpenChange, menuType, schedule, onConfirm }) {
-  const [type, setType] = useState("takeaway");
   const [asap, setAsap] = useState(true);
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState("");
-  const [postalCode, setPostalCode] = useState("");
   const [prepMinutes, setPrepMinutes] = useState(30);
   const [error, setError] = useState("");
 
@@ -55,11 +51,9 @@ export default function OrderModePicker({ open, onOpenChange, menuType, schedule
     return arr;
   }, [daysAhead]);
 
-  // Time slots: derive from schedule for selected day OR 11:00-22:00 default
   const timeSlots = useMemo(() => {
     if (!selectedDate) return [];
     const slots = genSlots(11, 22);
-    // If today, only future slots (accounting for prep time)
     if (selectedDate.toISOString().split("T")[0] === todayStr) {
       const cutoff = new Date(now.getTime() + prepMinutes * 60 * 1000);
       return slots.filter((t) => {
@@ -79,10 +73,6 @@ export default function OrderModePicker({ open, onOpenChange, menuType, schedule
 
   const confirm = () => {
     setError("");
-    if (type === "delivery" && !/^\d{4}$/.test(postalCode.trim())) {
-      setError("Code postal suisse à 4 chiffres requis pour la livraison.");
-      return;
-    }
     let pickup_time = "ASAP";
     let label = `Dès que possible (~${prepMinutes} min)`;
     if (!asap) {
@@ -95,10 +85,10 @@ export default function OrderModePicker({ open, onOpenChange, menuType, schedule
       label = `${dayLabel(selectedDate, todayStr)} à ${selectedTime}`;
     }
     onConfirm({
-      fulfillment_type: type,
+      fulfillment_type: "takeaway",
       pickup_time,
       pickup_time_label: label,
-      postal_code: type === "delivery" ? postalCode.trim() : "",
+      postal_code: "",
     });
   };
 
@@ -108,35 +98,19 @@ export default function OrderModePicker({ open, onOpenChange, menuType, schedule
         <div className="p-7">
           <DialogTitle className="font-display text-3xl mb-1">Votre commande</DialogTitle>
           <DialogDescription className="text-muted2 text-sm">
-            {isEpicerie ? "Choisissez comment et quand vous serez servi(e)." : "À emporter ou livraison — pour aujourd'hui ou demain."}
+            {isEpicerie ? "Choisissez quand vous viendrez chercher votre commande." : "À emporter — pour aujourd'hui ou demain."}
           </DialogDescription>
 
-          {/* Mode */}
-          <div className="grid grid-cols-2 gap-3 mt-6">
-            <button onClick={() => setType("takeaway")} data-testid="mode-takeaway"
-              className={`border p-4 flex flex-col items-center gap-2 transition-all ${type==="takeaway" ? "border-brand bg-brand/8 shadow-sm" : "border-ink/15 hover:border-brand"}`}>
-              <Package size={22} strokeWidth={1.5} className={type==="takeaway" ? "text-brand" : "text-ink"} />
-              <span className="text-[11px] tracking-[.2em] uppercase">À emporter</span>
-            </button>
-            <button onClick={() => setType("delivery")} data-testid="mode-delivery"
-              className={`border p-4 flex flex-col items-center gap-2 transition-all ${type==="delivery" ? "border-brand bg-brand/8 shadow-sm" : "border-ink/15 hover:border-brand"}`}>
-              <Truck size={22} strokeWidth={1.5} className={type==="delivery" ? "text-brand" : "text-ink"} />
-              <span className="text-[11px] tracking-[.2em] uppercase">Livraison</span>
-            </button>
+          {/* Fulfillment info — takeaway only */}
+          <div className="mt-6 border border-brand bg-brand/8 p-4 flex items-center gap-3">
+            <Package size={22} strokeWidth={1.5} className="text-brand" />
+            <div>
+              <p className="text-[11px] tracking-[.2em] uppercase text-brand">À emporter</p>
+              <p className="text-sm text-muted2">Retrait sur place — Av. William-Fraisse 1, Lausanne</p>
+            </div>
           </div>
 
-          {/* Postal code (delivery only) */}
-          {type === "delivery" && (
-            <div className="mt-4">
-              <Label className="text-[11px] tracking-[.2em] uppercase">Code postal *</Label>
-              <Input value={postalCode} onChange={(e) => setPostalCode(e.target.value.replace(/\D/g, "").slice(0,4))}
-                placeholder="1006" inputMode="numeric" data-testid="mode-postal-code"
-                className="mt-2 !bg-transparent border-ink/20 rounded-none focus-visible:ring-brand" />
-              <p className="mt-2 text-xs text-muted2">Livraison sur Lausanne et environs.</p>
-            </div>
-          )}
-
-          {/* Créneau — Uber Eats-style */}
+          {/* Créneau */}
           <div className="mt-6">
             <div className="grid grid-cols-2 gap-3">
               <button onClick={() => setAsap(true)} data-testid="slot-asap"
@@ -155,7 +129,6 @@ export default function OrderModePicker({ open, onOpenChange, menuType, schedule
 
             {!asap && (
               <div className="mt-5 space-y-4">
-                {/* Day chips */}
                 <div>
                   <p className="text-[11px] tracking-[.2em] uppercase text-muted2 mb-2">Jour</p>
                   <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
@@ -173,7 +146,6 @@ export default function OrderModePicker({ open, onOpenChange, menuType, schedule
                   </div>
                 </div>
 
-                {/* Time slots grid */}
                 {selectedDate && (
                   <div>
                     <p className="text-[11px] tracking-[.2em] uppercase text-muted2 mb-2">Heure</p>
@@ -195,7 +167,7 @@ export default function OrderModePicker({ open, onOpenChange, menuType, schedule
                 {isTomorrow && (
                   <div className="flex gap-3 p-3 bg-ochre/10 border border-ochre/50 text-[13px]" data-testid="tomorrow-warning">
                     <AlertTriangle size={18} strokeWidth={1.5} className="text-ochre shrink-0 mt-0.5" />
-                    <p>Vous commandez pour <strong>demain</strong>. Votre commande sera préparée le lendemain à l'heure indiquée.</p>
+                    <p>Vous commandez pour <strong>demain</strong>. Votre commande sera préparée le lendemain à l&apos;heure indiquée.</p>
                   </div>
                 )}
               </div>

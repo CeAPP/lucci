@@ -166,10 +166,11 @@ class ScheduleUpdate(BaseModel):
 
 class PromoCode(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    code: str
+    code: str = ""  # empty = auto-apply (no code needed)
     type: str  # percent | fixed | bogo
     value: float
     min_amount: float = 0.0
+    scope: str = "all"  # all | product
     product_id: Optional[str] = None
     active: bool = True
     created_at: str = Field(default_factory=now_iso)
@@ -424,21 +425,75 @@ async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_cur
 
 async def _calc_totals(order_in: OrderCreate) -> dict:
     settings = await db.settings.find_one({"_id": "settings"}, {"_id": 0}) or {}
-    vat_rate = settings.get("vat_delivery", 0.081) if order_in.fulfillment_type == "delivery" else settings.get("vat_takeaway", 0.026)
+    vat_rate = settings.get("vat_takeaway", 0.026)
     subtotal = sum(it.line_total for it in order_in.items)
+
+    def _apply_promo(promo: dict, cart_items: List[OrderItem], sub: float) -> float:
+        """Return discount amount for one promo."""
+        if sub < promo.get("min_amount", 0):
+            return 0.0
+        scope = promo.get("scope", "all")
+        p_type = promo.get("type")
+        val = promo.get("value", 0)
+        # Find target item(s)
+        if scope == "product":
+            pid = promo.get("product_id")
+            target = [it for it in cart_items if it.product_id == pid]
+            base = sum(it.line_total for it in target)
+            if base <= 0:
+                return 0.0
+            if p_type == "percent":
+                return base * (val / 100.0)
+            if p_type == "fixed":
+                return min(val, base)
+            if p_type == "bogo":
+                # Buy one get one: qty//2 units free per line
+                free_amount = 0.0
+                for it in target:
+                    unit = it.line_total / it.quantity if it.quantity else 0
+                    free_amount += (it.quantity // 2) * unit
+                return free_amount
+            return 0.0
+        # scope == "all"
+        if p_type == "percent":
+            return sub * (val / 100.0)
+        if p_type == "fixed":
+            return min(val, sub)
+        if p_type == "bogo":
+            # Global BOGO applies per product line
+            free = 0.0
+            for it in cart_items:
+                unit = it.line_total / it.quantity if it.quantity else 0
+                free += (it.quantity // 2) * unit
+            return free
+        return 0.0
 
     discount = 0.0
     promo_used = None
+
+    # 1) Apply the best applicable auto-promo (no code required, active)
+    auto_promos = await db.promo_codes.find({"code": "", "active": True}, {"_id": 0}).to_list(200)
+    best_auto = None
+    best_auto_amt = 0.0
+    for pr in auto_promos:
+        amt = _apply_promo(pr, order_in.items, subtotal)
+        if amt > best_auto_amt:
+            best_auto_amt = amt
+            best_auto = pr
+    if best_auto:
+        discount += best_auto_amt
+        promo_used = "AUTO"
+
+    # 2) Apply code-based promo on top
     if order_in.promo_code:
-        promo = await db.promo_codes.find_one({"code": order_in.promo_code.upper(), "active": True}, {"_id": 0})
-        if promo and subtotal >= promo.get("min_amount", 0):
-            if promo["type"] == "percent":
-                discount = subtotal * (promo["value"] / 100.0)
-            elif promo["type"] == "fixed":
-                discount = min(promo["value"], subtotal)
-            elif promo["type"] == "bogo":
-                discount = 0.0  # simplified — extend as needed
-            promo_used = promo["code"]
+        promo = await db.promo_codes.find_one(
+            {"code": order_in.promo_code.upper(), "active": True}, {"_id": 0}
+        )
+        if promo:
+            amt = _apply_promo(promo, order_in.items, subtotal)
+            if amt > 0:
+                discount += amt
+                promo_used = promo["code"]
 
     net = max(0.0, subtotal - discount)
     vat_amount = round(net * vat_rate / (1 + vat_rate), 2)  # VAT included in price
@@ -522,7 +577,7 @@ async def list_orders_admin(status: Optional[str] = None, user: dict = Depends(g
 
 @api.patch("/admin/orders/{order_id}/status")
 async def set_order_status(order_id: str, status: str, user: dict = Depends(get_current_user)):
-    if status not in ["new", "preparing", "ready", "handed", "done"]:
+    if status not in ["new", "preparing", "ready", "done"]:
         raise HTTPException(400)
     await db.orders.update_one({"id": order_id}, {"$set": {"status": status}})
     return {"ok": True}
@@ -622,9 +677,15 @@ async def list_promos(user: dict = Depends(get_current_user)):
 @api.post("/admin/promos")
 async def create_promo(p: PromoCode, user: dict = Depends(get_current_user)):
     doc = p.model_dump()
-    doc["code"] = doc["code"].upper()
+    doc["code"] = (doc.get("code") or "").upper().strip()
     await db.promo_codes.insert_one(doc.copy())
     return doc
+
+
+@api.patch("/admin/promos/{pid}")
+async def toggle_promo(pid: str, active: bool, user: dict = Depends(get_current_user)):
+    await db.promo_codes.update_one({"id": pid}, {"$set": {"active": active}})
+    return {"ok": True}
 
 
 @api.delete("/admin/promos/{pid}")

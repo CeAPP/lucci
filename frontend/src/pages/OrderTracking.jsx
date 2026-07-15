@@ -6,11 +6,10 @@ import { CheckCircle2, Clock, Phone, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 
 const STATUS_MAP = {
-  new: { label: "Nouvelle commande", step: 1 },
+  new: { label: "En attente de confirmation", step: 1 },
   preparing: { label: "En préparation", step: 2 },
-  ready: { label: "Prête", step: 3 },
-  handed: { label: "Remise", step: 4 },
-  done: { label: "Terminée", step: 4 },
+  ready: { label: "Prêt", step: 3 },
+  done: { label: "Terminé", step: 4 },
 };
 
 export default function OrderTracking() {
@@ -52,7 +51,7 @@ export default function OrderTracking() {
         {/* Progress */}
         <div className="bg-cream-surface p-6 mb-8">
           <div className="flex items-center justify-between mb-6 text-xs tracking-widest uppercase text-muted2">
-            {["Reçue", "Préparation", "Prête", "Remise"].map((s, i) => (
+            {["En attente", "Préparation", "Prêt", "Terminé"].map((s, i) => (
               <span key={s} className={i < st.step ? "text-brand" : ""}>{s}</span>
             ))}
           </div>
@@ -64,7 +63,7 @@ export default function OrderTracking() {
 
         {/* Details */}
         <div className="space-y-2 text-sm mb-8">
-          <p className="flex justify-between border-b border-ink/5 py-2"><span className="text-muted2">Mode</span><span>{order.fulfillment_type === "delivery" ? "Livraison" : "À emporter"}</span></p>
+          <p className="flex justify-between border-b border-ink/5 py-2"><span className="text-muted2">Mode</span><span>À emporter</span></p>
           <p className="flex justify-between border-b border-ink/5 py-2"><span className="text-muted2">Créneau</span><span className="text-brand font-medium">{order.pickup_time_label}</span></p>
           <p className="flex justify-between border-b border-ink/5 py-2"><span className="text-muted2">Menu</span><span>{order.menu_type === "epicerie" ? "Épicerie" : "Restaurant"}</span></p>
           <p className="flex justify-between border-b border-ink/5 py-2"><span className="text-muted2">Total</span><span className="text-brand font-medium">{CHF(order.total)}</span></p>
