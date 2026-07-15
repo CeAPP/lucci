@@ -14,6 +14,7 @@ DEFAULT_SETTINGS = {
     "orders_enabled": True,
     "reservations_enabled": True,
     "grocery_lead_days": 7,
+    "epicerie_days_ahead": 7,
     "preparation_time_minutes": 30,
 }
 

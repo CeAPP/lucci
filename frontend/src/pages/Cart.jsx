@@ -1,17 +1,14 @@
-import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Minus, Plus, X, ShoppingBag, ArrowRight, ShoppingCart } from "lucide-react";
 import PageTransition from "@/components/PageTransition";
-import CheckoutModal from "@/components/CheckoutModal";
 import { useCart } from "@/context/CartContext";
-import { CHF, mediaUrl } from "@/lib/api";
+import { CHF } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
 export default function Cart() {
   const nav = useNavigate();
-  const { cart, removeItem, updateQty, clearCart, totalFor, countFor, mode } = useCart();
-  const [checkoutMenu, setCheckoutMenu] = useState(null);
+  const { cart, removeItem, updateQty, clearCart, totalFor, countFor } = useCart();
 
   const totalRestaurant = totalFor("restaurant");
   const totalEpicerie = totalFor("epicerie");
@@ -69,41 +66,41 @@ export default function Cart() {
 
                 <div className="divide-y divide-ink/5">
                   {items.map((it) => (
-                    <div key={it._uid} className="p-4 md:p-5 flex items-center gap-4">
+                    <div key={it._uid} className="p-3 md:p-5 flex items-center gap-2 md:gap-4">
                       <div className="flex-1 min-w-0">
-                        <p className="font-display text-lg leading-tight">{it.name}</p>
+                        <p className="font-display text-base md:text-lg leading-tight">{it.name}</p>
                         {it.selected_addons.length > 0 && (
                           <p className="text-xs text-muted2 mt-1">+ {it.selected_addons.map(a=>a.name).join(", ")}</p>
                         )}
                         {it.note && <p className="text-xs italic text-muted2 mt-1">✎ {it.note}</p>}
-                        <p className="text-brand text-sm mt-1">{CHF(it.unit_price + it.selected_addons.reduce((s,a)=>s+a.price,0))} / u.</p>
+                        <p className="text-brand text-xs md:text-sm mt-1">{CHF(it.unit_price + it.selected_addons.reduce((s,a)=>s+a.price,0))} / u.</p>
                       </div>
                       <div className="flex items-center gap-1">
                         <button onClick={() => updateQty(s.key, it._uid, it.quantity - 1)} className="w-8 h-8 border border-ink/20 flex items-center justify-center hover:bg-cream-surface" data-testid={`qty-minus-${it._uid}`}><Minus size={12}/></button>
-                        <span className="w-8 text-center">{it.quantity}</span>
+                        <span className="w-6 text-center text-sm">{it.quantity}</span>
                         <button onClick={() => updateQty(s.key, it._uid, it.quantity + 1)} className="w-8 h-8 border border-ink/20 flex items-center justify-center hover:bg-cream-surface" data-testid={`qty-plus-${it._uid}`}><Plus size={12}/></button>
                       </div>
-                      <div className="text-right min-w-[80px]">
-                        <p className="text-terracotta font-medium">{CHF(it.line_total)}</p>
+                      <div className="text-right min-w-[64px] md:min-w-[80px]">
+                        <p className="text-terracotta text-sm md:text-base font-medium">{CHF(it.line_total)}</p>
                       </div>
                       <button onClick={() => removeItem(s.key, it._uid)} className="text-muted2 hover:text-destructive p-1" data-testid={`remove-${it._uid}`}><X size={16}/></button>
                     </div>
                   ))}
                 </div>
 
-                <div className="px-6 py-4 border-t border-ink/10 flex items-center justify-between gap-4 bg-cream-surface/60">
+                <div className="px-4 md:px-6 py-4 border-t border-ink/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4 bg-cream-surface/60">
                   <div className="text-sm">
                     <p className="text-muted2 text-xs">Sous-total {s.label}</p>
                     <p className="font-display text-2xl text-terracotta">{CHF(subtotal)}</p>
                     <p className="text-[11px] text-muted2 mt-0.5">TVA incluse</p>
                   </div>
-                  <div className="flex gap-2">
-                    <Link to={s.to} className="hidden sm:inline-flex items-center gap-2 border border-ink/20 hover:border-brand px-4 py-3 text-[11px] tracking-[.2em] uppercase transition-colors">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Link to={s.to} className="hidden sm:inline-flex items-center justify-center gap-2 border border-ink/20 hover:border-brand px-4 py-3 text-[11px] tracking-[.2em] uppercase transition-colors">
                       {s.cta}
                     </Link>
-                    <Button onClick={() => setCheckoutMenu(s.key)} data-testid={`checkout-${s.key}`}
-                      className="bg-ink hover:bg-brand text-cream rounded-none tracking-[.2em] uppercase h-11 px-6 text-[12px]">
-                      Passer commande <ArrowRight size={14} className="ml-2" />
+                    <Button onClick={() => nav(`/checkout/${s.key}`)} data-testid={`checkout-${s.key}`}
+                      className="w-full sm:w-auto bg-ink hover:bg-brand text-cream rounded-none tracking-[.2em] uppercase h-11 px-6 text-[12px]">
+                      Passer au paiement <ArrowRight size={14} className="ml-2" />
                     </Button>
                   </div>
                 </div>
@@ -125,12 +122,6 @@ export default function Cart() {
           </div>
         )}
       </section>
-
-      {checkoutMenu && (
-        <CheckoutModal open={!!checkoutMenu} onOpenChange={(v) => !v && setCheckoutMenu(null)}
-          menuType={checkoutMenu}
-          onSuccess={(orderId) => { clearCart(checkoutMenu); setCheckoutMenu(null); nav(`/suivi/${orderId}`); }} />
-      )}
     </PageTransition>
   );
 }

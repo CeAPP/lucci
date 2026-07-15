@@ -103,6 +103,7 @@ function usePing() {
 function OrdersTab({ ping }) {
   const [orders, setOrders] = useState([]);
   const [filter, setFilter] = useState("all");
+  const [rescheduling, setRescheduling] = useState(null);
   const lastIdsRef = useRef(new Set());
 
   const load = async () => {
@@ -121,19 +122,35 @@ function OrdersTab({ ping }) {
 
   const filtered = orders.filter((o) => filter === "all" || o.status === filter);
 
-  const advance = async (o) => {
-    const flow = ["new", "preparing", "ready", "done"];
-    const next = flow[Math.min(flow.length - 1, flow.indexOf(o.status) + 1)];
-    await api.patch(`/admin/orders/${o.id}/status`, null, { params: { status: next } });
+  const setStatus = async (o, status) => {
+    await api.patch(`/admin/orders/${o.id}/status`, null, { params: { status } });
     load();
   };
-  const del = async (o) => { if (!confirm("Supprimer ?")) return; await api.delete(`/admin/orders/${o.id}`); load(); };
+  const advance = (o) => {
+    const flow = ["new", "preparing", "ready", "done"];
+    const next = flow[Math.min(flow.length - 1, flow.indexOf(o.status) + 1)];
+    setStatus(o, next);
+  };
+  const reject = async (o) => {
+    if (!confirm(`Refuser cette commande #${o.order_number} ? Le client sera notifié.`)) return;
+    setStatus(o, "rejected");
+    toast.error("Commande refusée");
+  };
+  const del = async (o) => { if (!confirm("Supprimer définitivement ?")) return; await api.delete(`/admin/orders/${o.id}`); load(); };
 
   const STATUS_CFG = {
     new: { label: "En attente de confirmation", color: "bg-brand text-cream" },
     preparing: { label: "En préparation", color: "bg-amber-600 text-cream" },
     ready: { label: "Prêt", color: "bg-emerald-700 text-cream" },
     done: { label: "Terminé", color: "bg-ink/40 text-cream" },
+    rejected: { label: "Refusée", color: "bg-destructive text-cream" },
+  };
+
+  const advanceLabel = (status) => {
+    if (status === "new") return "Confirmer la commande";
+    if (status === "preparing") return "Marquer prêt";
+    if (status === "ready") return "Terminer";
+    return "";
   };
 
   const fmtDT = (iso) => {
@@ -146,7 +163,7 @@ function OrdersTab({ ping }) {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-6">
-        {["all", "new", "preparing", "ready", "done"].map((s) => (
+        {["all", "new", "preparing", "ready", "done", "rejected"].map((s) => (
           <button key={s} onClick={() => setFilter(s)} data-testid={`filter-${s}`}
             className={`px-4 py-2 text-xs tracking-widest uppercase border transition-colors ${filter===s ? "bg-ink text-cream border-ink" : "border-ink/20 hover:border-brand"}`}>
             {s === "all" ? "Toutes" : STATUS_CFG[s].label} ({s === "all" ? orders.length : orders.filter((o) => o.status === s).length})
@@ -157,6 +174,7 @@ function OrdersTab({ ping }) {
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((o) => {
           const isEpicerie = o.menu_type === "epicerie";
+          const cfg = STATUS_CFG[o.status] || STATUS_CFG.new;
           return (
           <div key={o.id} className="border border-ink/10 bg-cream p-5" data-testid={`order-card-${o.id}`}>
             {/* Big menu type banner */}
@@ -167,7 +185,7 @@ function OrdersTab({ ping }) {
               <span className="text-xs opacity-80">#{o.order_number}</span>
             </div>
 
-            <span className={`inline-block text-[10px] tracking-widest uppercase px-2 py-1 mb-3 ${STATUS_CFG[o.status].color}`}>{STATUS_CFG[o.status].label}</span>
+            <span className={`inline-block text-[10px] tracking-widest uppercase px-2 py-1 mb-3 ${cfg.color}`}>{cfg.label}</span>
             <p className="font-display text-xl">{o.customer.first_name} {o.customer.last_name}</p>
             <a href={`tel:${o.customer.phone.replace(/\s/g,"")}`} className="text-brand text-lg link-underline flex items-center gap-1">
               <Phone size={14} /> {o.customer.phone}
@@ -176,6 +194,12 @@ function OrdersTab({ ping }) {
             <div className="my-3 p-2.5 bg-brand/10 border border-brand text-center">
               <p className="text-[10px] tracking-widest uppercase text-brand">Créneau de retrait</p>
               <p className="font-display text-lg" data-testid={`order-pickup-${o.id}`}>{o.pickup_time_label}</p>
+              {o.status !== "done" && o.status !== "rejected" && (
+                <button onClick={() => setRescheduling(o)} data-testid={`reschedule-${o.id}`}
+                  className="text-[10px] tracking-widest uppercase text-brand link-underline mt-1">
+                  Repousser →
+                </button>
+              )}
             </div>
 
             <p className="text-xs text-muted2 mb-3" data-testid={`order-created-${o.id}`}>
@@ -204,21 +228,143 @@ function OrdersTab({ ping }) {
               <span className="text-brand font-medium">{CHF(o.total)}</span>
             </div>
 
-            <div className="flex gap-2 mt-4">
-              {o.status !== "done" && (
+            <div className="flex flex-col gap-2 mt-4">
+              {advanceLabel(o.status) && (
                 <Button onClick={() => advance(o)} data-testid={`advance-${o.id}`}
-                  className="flex-1 bg-brand hover:bg-brand-hover text-cream rounded-none uppercase text-xs tracking-widest h-9">
-                  Avancer →
+                  className="w-full bg-emerald-700 hover:bg-emerald-800 text-cream rounded-none uppercase text-xs tracking-widest h-10">
+                  ✓ {advanceLabel(o.status)}
                 </Button>
               )}
-              <Button onClick={() => del(o)} variant="outline" data-testid={`delete-${o.id}`}
-                className="rounded-none border-ink/20 h-9 px-3"><Trash2 size={14} /></Button>
+              <div className="flex gap-2">
+                {o.status === "new" && (
+                  <Button onClick={() => reject(o)} data-testid={`reject-${o.id}`}
+                    variant="outline" className="flex-1 border-destructive text-destructive hover:bg-destructive hover:text-cream rounded-none uppercase text-xs tracking-widest h-9">
+                    Refuser
+                  </Button>
+                )}
+                <Button onClick={() => del(o)} variant="outline" data-testid={`delete-${o.id}`}
+                  className="rounded-none border-ink/20 h-9 px-3"><Trash2 size={14} /></Button>
+              </div>
             </div>
           </div>
           );
         })}
       </div>
+
+      {rescheduling && (
+        <RescheduleDialog order={rescheduling} onClose={() => setRescheduling(null)} onSaved={() => { setRescheduling(null); load(); }} />
+      )}
     </div>
+  );
+}
+
+// =========== RESCHEDULE DIALOG ===========
+function RescheduleDialog({ order, onClose, onSaved }) {
+  const [schedule, setSchedule] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedTime, setSelectedTime] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const kind = order.menu_type === "epicerie" ? "epicerie" : "restaurant";
+    api.get(`/schedule/${kind}`).then((r) => setSchedule(r.data)).catch(() => {});
+  }, [order.menu_type]);
+
+  const DAY_KEYS = ["sun","mon","tue","wed","thu","fri","sat"];
+  const slotsFor = (date) => {
+    if (!schedule) return [];
+    const d = schedule.days?.[DAY_KEYS[date.getDay()]];
+    if (!d || d.closed) return [];
+    const arr = [];
+    const push = (s, e) => {
+      if (!s || !e) return;
+      const [sh, sm] = s.split(":").map(Number);
+      const [eh, em] = e.split(":").map(Number);
+      for (let t = sh*60+sm; t <= eh*60+em; t += 10) {
+        arr.push(`${String(Math.floor(t/60)).padStart(2,"0")}:${String(t%60).padStart(2,"0")}`);
+      }
+    };
+    push(d.lunch_start, d.lunch_end);
+    push(d.dinner_start, d.dinner_end);
+    return arr;
+  };
+
+  const days = Array.from({ length: 8 }, (_, i) => { const d = new Date(); d.setDate(d.getDate()+i); return d; });
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const save = async () => {
+    if (!selectedTime) { toast.error("Choisissez un créneau"); return; }
+    setSaving(true);
+    try {
+      const iso = selectedDate.toISOString().split("T")[0];
+      const isToday = iso === todayStr;
+      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+      const isTomorrow = iso === tomorrow.toISOString().split("T")[0];
+      const label = isToday
+        ? `Aujourd'hui à ${selectedTime}`
+        : isTomorrow
+          ? `Demain à ${selectedTime}`
+          : `${selectedDate.toLocaleDateString("fr-CH", { weekday:"short", day:"numeric", month:"short" })} à ${selectedTime}`;
+      await api.patch(`/admin/orders/${order.id}/reschedule`, null, {
+        params: { pickup_time: `${iso}T${selectedTime}`, pickup_time_label: label },
+      });
+      toast.success("Créneau modifié");
+      onSaved();
+    } catch (e) {
+      toast.error("Erreur");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg !bg-cream border-ink/10 rounded-none p-0" data-testid="reschedule-dialog">
+        <DialogTitle className="sr-only">Repousser la commande</DialogTitle>
+        <div className="p-5">
+          <p className="text-[10px] tracking-[.3em] uppercase text-brand mb-1">Repousser</p>
+          <h3 className="font-display text-2xl mb-1">Nouveau créneau</h3>
+          <p className="text-xs text-muted2 mb-4">Actuel : <strong>{order.pickup_time_label}</strong></p>
+
+          <p className="text-[10px] tracking-widest uppercase text-muted2 mb-2">Jour</p>
+          <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1">
+            {days.map((d) => {
+              const iso = d.toISOString().split("T")[0];
+              const active = selectedDate.toISOString().split("T")[0] === iso;
+              return (
+                <button key={iso} onClick={() => { setSelectedDate(d); setSelectedTime(""); }} data-testid={`resched-day-${iso}`}
+                  className={`shrink-0 border px-3 py-2 min-w-[74px] text-center transition-all ${active ? "bg-ink text-cream border-ink" : "border-ink/15 hover:border-brand bg-cream"}`}>
+                  <p className="text-[10px] tracking-[.15em] uppercase">{iso === todayStr ? "Aujourd'hui" : d.toLocaleDateString("fr-CH", { weekday: "short" })}</p>
+                  <p className={`text-[10px] mt-0.5 ${active ? "text-cream/70" : "text-muted2"}`}>{d.toLocaleDateString("fr-CH", { day: "numeric", month: "short" })}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="text-[10px] tracking-widest uppercase text-muted2 mb-2 mt-3">Heure — 10 min</p>
+          {slotsFor(selectedDate).length === 0 ? (
+            <p className="text-sm text-muted2 py-4">Fermé ce jour.</p>
+          ) : (
+            <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 max-h-56 overflow-y-auto p-0.5">
+              {slotsFor(selectedDate).map((t) => (
+                <button key={t} onClick={() => setSelectedTime(t)} data-testid={`resched-time-${t}`}
+                  className={`py-2 text-sm border transition-all ${selectedTime === t ? "bg-brand text-cream border-brand" : "border-ink/15 hover:border-brand bg-cream"}`}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2 mt-5">
+            <Button variant="outline" onClick={onClose} className="flex-1 rounded-none border-ink/20 uppercase text-xs tracking-widest">Annuler</Button>
+            <Button disabled={saving || !selectedTime} onClick={save} data-testid="resched-save"
+              className="flex-1 bg-brand hover:bg-brand-hover text-cream rounded-none uppercase text-xs tracking-widest">
+              {saving ? "Envoi…" : "Enregistrer"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -863,6 +1009,7 @@ function SettingsTab() {
         <div><Label>Adresse</Label><Input value={s.address} onChange={(e) => setS({...s, address: e.target.value})} className="rounded-none bg-transparent border-ink/20" /></div>
         <div><Label>TVA emporter</Label><Input type="number" step="0.001" value={s.vat_takeaway} onChange={(e) => setS({...s, vat_takeaway: parseFloat(e.target.value)})} className="rounded-none bg-transparent border-ink/20" /></div>
         <div><Label>Temps de préparation (min)</Label><Input type="number" step="1" value={s.preparation_time_minutes || 30} onChange={(e) => setS({...s, preparation_time_minutes: parseInt(e.target.value) || 30})} data-testid="prep-time-input" className="rounded-none bg-transparent border-ink/20" /></div>
+        <div><Label>Épicerie — jours à l&apos;avance</Label><Input type="number" step="1" min="1" max="30" value={s.epicerie_days_ahead || 7} onChange={(e) => setS({...s, epicerie_days_ahead: parseInt(e.target.value) || 7})} data-testid="epicerie-days-input" className="rounded-none bg-transparent border-ink/20" /></div>
       </div>
       <label className="flex items-center gap-3"><Switch checked={s.orders_enabled} onCheckedChange={(v) => setS({...s, orders_enabled: v})} /> Commandes activées</label>
       <label className="flex items-center gap-3"><Switch checked={s.reservations_enabled} onCheckedChange={(v) => setS({...s, reservations_enabled: v})} /> Réservations activées</label>

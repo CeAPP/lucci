@@ -577,9 +577,20 @@ async def list_orders_admin(status: Optional[str] = None, user: dict = Depends(g
 
 @api.patch("/admin/orders/{order_id}/status")
 async def set_order_status(order_id: str, status: str, user: dict = Depends(get_current_user)):
-    if status not in ["new", "preparing", "ready", "done"]:
+    if status not in ["new", "preparing", "ready", "done", "rejected"]:
         raise HTTPException(400)
     await db.orders.update_one({"id": order_id}, {"$set": {"status": status}})
+    return {"ok": True}
+
+
+@api.patch("/admin/orders/{order_id}/reschedule")
+async def reschedule_order(order_id: str, pickup_time: str, pickup_time_label: str, user: dict = Depends(get_current_user)):
+    result = await db.orders.update_one(
+        {"id": order_id},
+        {"$set": {"pickup_time": pickup_time, "pickup_time_label": pickup_time_label}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, "Order not found")
     return {"ok": True}
 
 

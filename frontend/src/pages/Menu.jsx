@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Minus, X, ShoppingBag, Clock } from "lucide-react";
+import { Search, Plus, Minus, ShoppingBag, Clock } from "lucide-react";
 import PageTransition from "@/components/PageTransition";
 import api, { mediaUrl, CHF } from "@/lib/api";
 import { useCart } from "@/context/CartContext";
@@ -14,8 +14,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import OrderModePicker from "@/components/OrderModePicker";
-import CheckoutModal from "@/components/CheckoutModal";
-import ScheduleGate from "@/components/ScheduleGate";
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
@@ -39,7 +37,7 @@ export default function Menu({ menuType: propMenuType }) {
   const params = useParams();
   const menuType = propMenuType || (params.menuType === "epicerie" ? "epicerie" : "restaurant");
   const nav = useNavigate();
-  const { cart, addItem, mode, setMode, totalFor, countFor, removeItem, updateQty, clearCart } = useCart();
+  const { cart, addItem, mode, setMode, totalFor, countFor } = useCart();
 
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
@@ -49,7 +47,6 @@ export default function Menu({ menuType: propMenuType }) {
   const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showModePicker, setShowModePicker] = useState(false);
-  const [showCheckout, setShowCheckout] = useState(false);
 
   useEffect(() => {
     const scheduleKind = menuType === "epicerie" ? "epicerie" : "restaurant";
@@ -208,46 +205,20 @@ export default function Menu({ menuType: propMenuType }) {
         menuType={menuType} schedule={schedule}
         onConfirm={(m) => { setMode({ ...m, menu_type: menuType }); setShowModePicker(false); }} />
 
-      {/* CHECKOUT */}
-      {showCheckout && (
-        <CheckoutModal open={showCheckout} onOpenChange={setShowCheckout}
-          menuType={menuType} onSuccess={(orderId) => { clearCart(menuType); setShowCheckout(false); nav(`/suivi/${orderId}`); }} />
-      )}
-
       {/* STICKY CART */}
       {cartCount > 0 && (
         <div className={`fixed bottom-0 left-0 right-0 z-40 bg-ink text-cream border-t-2 ${accentBorderClass}`} data-testid="sticky-cart">
-          <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
+          <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-3 md:py-4 flex items-center justify-between gap-3 md:gap-4">
+            <div className="flex items-center gap-2 md:gap-4 min-w-0">
               <ShoppingBag size={20} strokeWidth={1.5} className={accentTextClass} />
-              <span className="font-display text-2xl">{cartCount} article{cartCount > 1 ? "s" : ""}</span>
+              <span className="font-display text-lg md:text-2xl whitespace-nowrap">{cartCount} article{cartCount > 1 ? "s" : ""}</span>
               <span className="hidden sm:inline text-cream/60">·</span>
               <span className={`hidden sm:inline ${accentTextClass}`}>{CHF(cartTotal)}</span>
             </div>
-            <div className="flex items-center gap-3">
-              <details className="hidden md:block">
-                <summary className="cursor-pointer text-sm tracking-widest uppercase link-underline">Voir le panier</summary>
-              </details>
-              <button onClick={() => setShowCheckout(true)} data-testid="open-checkout-btn"
-                className={`${accentClass} hover:brightness-95 text-cream px-6 py-3 text-sm tracking-widest uppercase transition-all`}>
-                Commander · {CHF(cartTotal)}
-              </button>
-            </div>
-          </div>
-          {/* Expandable cart */}
-          <div className="max-w-[1400px] mx-auto px-6 md:px-10 pb-3 max-h-40 overflow-y-auto">
-            {cart[menuType].map((it) => (
-              <div key={it._uid} className="flex items-center gap-4 text-sm py-1.5">
-                <div className="flex items-center gap-2">
-                  <button onClick={() => updateQty(menuType, it._uid, it.quantity - 1)} className="w-6 h-6 border border-cream/30 flex items-center justify-center hover:bg-brand hover:border-brand"><Minus size={12}/></button>
-                  <span className="w-6 text-center">{it.quantity}</span>
-                  <button onClick={() => updateQty(menuType, it._uid, it.quantity + 1)} className="w-6 h-6 border border-cream/30 flex items-center justify-center hover:bg-brand hover:border-brand"><Plus size={12}/></button>
-                </div>
-                <span className="flex-1 truncate">{it.name}{it.selected_addons.length > 0 && <span className="text-cream/50"> · {it.selected_addons.map(a=>a.name).join(", ")}</span>}</span>
-                <span className="text-brand">{CHF(it.line_total)}</span>
-                <button onClick={() => removeItem(menuType, it._uid)} className="text-cream/60 hover:text-cream"><X size={14}/></button>
-              </div>
-            ))}
+            <button onClick={() => nav("/panier")} data-testid="open-cart-btn"
+              className={`${accentClass} hover:brightness-95 text-cream px-4 md:px-6 py-2.5 md:py-3 text-xs md:text-sm tracking-widest uppercase transition-all whitespace-nowrap`}>
+              Voir le panier · {CHF(cartTotal)}
+            </button>
           </div>
         </div>
       )}
@@ -283,32 +254,32 @@ function ProductModal({ product, addonGroups, onClose, onAdd }) {
 
   return (
     <Dialog open={!!product} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-3xl p-0 bg-cream border-ink/10 rounded-none overflow-hidden" data-testid="product-modal">
+      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-3xl bg-cream border-ink/10 rounded-none p-0 overflow-hidden max-h-[92vh]" data-testid="product-modal">
         <DialogTitle className="sr-only">{product.name}</DialogTitle>
-        <div className="grid md:grid-cols-2">
+        <div className="grid md:grid-cols-2 max-h-[92vh]">
           {product.image_url && (
-            <div className="aspect-square md:aspect-auto overflow-hidden bg-cream-surface">
+            <div className="h-40 sm:h-56 md:h-auto md:aspect-auto overflow-hidden bg-cream-surface">
               <img src={mediaUrl(product.image_url)} alt={product.name} className="w-full h-full object-cover" />
             </div>
           )}
-          <div className="p-8 max-h-[80vh] overflow-y-auto">
-            <h3 className="font-display text-3xl mb-2">{product.name}</h3>
-            <p className="text-brand text-lg mb-4">{CHF(product.price)}</p>
-            <p className="text-muted2 mb-6">{product.description}</p>
+          <div className="p-5 sm:p-6 md:p-8 overflow-y-auto flex flex-col">
+            <h3 className="font-display text-2xl sm:text-3xl mb-1 pr-8">{product.name}</h3>
+            <p className="text-brand text-base sm:text-lg mb-3">{CHF(product.price)}</p>
+            <p className="text-muted2 text-sm sm:text-base mb-5">{product.description}</p>
 
             {groups.map((g) => (
-              <div key={g.id} className="mb-6">
-                <div className="flex items-baseline justify-between mb-3">
+              <div key={g.id} className="mb-5">
+                <div className="flex items-baseline justify-between mb-2">
                   <p className="text-xs tracking-[.25em] uppercase">{g.name}</p>
                   <span className="text-xs text-muted2">{g.required ? "Obligatoire" : "Optionnel"}</span>
                 </div>
                 {g.multi ? (
                   <div className="space-y-2">
                     {g.options.map((o) => (
-                      <label key={o.id} className="flex items-center justify-between gap-3 border border-ink/10 p-3 cursor-pointer hover:border-brand transition-colors">
+                      <label key={o.id} className="flex items-center justify-between gap-3 border border-ink/10 p-2.5 cursor-pointer hover:border-brand transition-colors">
                         <div className="flex items-center gap-3">
                           <Checkbox checked={(selected[g.id] || []).includes(o.id)} onCheckedChange={() => toggle(g, o)} data-testid={`addon-${o.id}`} />
-                          <span>{o.name}</span>
+                          <span className="text-sm">{o.name}</span>
                         </div>
                         {o.price > 0 && <span className="text-brand text-sm">+{CHF(o.price)}</span>}
                       </label>
@@ -317,10 +288,10 @@ function ProductModal({ product, addonGroups, onClose, onAdd }) {
                 ) : (
                   <RadioGroup value={(selected[g.id] || [])[0] || ""} onValueChange={(v) => setSelected((s) => ({ ...s, [g.id]: [v] }))}>
                     {g.options.map((o) => (
-                      <label key={o.id} className="flex items-center justify-between gap-3 border border-ink/10 p-3 cursor-pointer hover:border-brand transition-colors">
+                      <label key={o.id} className="flex items-center justify-between gap-3 border border-ink/10 p-2.5 cursor-pointer hover:border-brand transition-colors">
                         <div className="flex items-center gap-3">
                           <RadioGroupItem value={o.id} data-testid={`addon-${o.id}`} />
-                          <span>{o.name}</span>
+                          <span className="text-sm">{o.name}</span>
                         </div>
                         {o.price > 0 && <span className="text-brand text-sm">+{CHF(o.price)}</span>}
                       </label>
@@ -330,16 +301,16 @@ function ProductModal({ product, addonGroups, onClose, onAdd }) {
               </div>
             ))}
 
-            <div className="mb-6">
+            <div className="mb-5">
               <Label className="text-xs tracking-[.25em] uppercase mb-2 block">Commentaire</Label>
               <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="commentaire"
-                data-testid="product-note" className="bg-transparent border-ink/20 rounded-none focus-visible:ring-brand resize-none" rows={2} />
+                data-testid="product-note" className="bg-transparent border-ink/20 rounded-none focus-visible:ring-brand resize-none text-sm" rows={2} />
             </div>
 
-            <div className="flex items-center justify-between gap-4 mt-8">
+            <div className="flex items-center justify-between gap-3 mt-auto pt-2 sticky bottom-0 bg-cream">
               <div className="flex items-center gap-2">
                 <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="w-10 h-10 border border-ink/20 flex items-center justify-center hover:bg-cream-surface" data-testid="qty-minus"><Minus size={14}/></button>
-                <span className="w-10 text-center font-display text-xl">{qty}</span>
+                <span className="w-8 text-center font-display text-lg">{qty}</span>
                 <button onClick={() => setQty((q) => q + 1)} className="w-10 h-10 border border-ink/20 flex items-center justify-center hover:bg-cream-surface" data-testid="qty-plus"><Plus size={14}/></button>
               </div>
               <Button disabled={!canAdd} data-testid="add-to-cart-btn"
@@ -348,7 +319,7 @@ function ProductModal({ product, addonGroups, onClose, onAdd }) {
                   unit_price: product.price, selected_addons: addonsFlat.map((a) => ({ id: a.id, name: a.name, price: a.price })),
                   note, line_total: lineTotal,
                 })}
-                className="flex-1 bg-brand hover:bg-brand-hover text-cream rounded-none tracking-widest uppercase h-12">
+                className="flex-1 bg-brand hover:bg-brand-hover text-cream rounded-none tracking-widest uppercase h-11 text-sm">
                 Ajouter · {CHF(lineTotal)}
               </Button>
             </div>

@@ -46,11 +46,21 @@ Full-stack website for Farmacia Angelucci (branded ANGELUCCI'S) — Italian rest
 - **Mobile responsive fix**: rewrote Landing hero (mobile shows centered logo → text → CTAs → image, no absolute-positioned overlap); scaled down all section paddings/typography for mobile; single-column stacked layouts; address+phone stacked
 - To re-enable full site: flip `TEMP_MODE` to `false` in `/app/frontend/src/config.js`
 
+## Implemented (2026-02 — Delivery removed + Cart/Checkout split + Admin actions)
+- Delivery mode entirely removed — takeaway only; VAT always 2.6%
+- `/commander` (restaurant) and `/epicerie` re-opened in TEMP_MODE
+- **OrderModePicker refonte** : 10-min slots derived from schedule opening hours (lunch + dinner windows). ASAP button always on top. Today's slots visible below. "Programmer plus tard" reveals future days (1 day for restaurant, up to `epicerie_days_ahead` for épicerie — configurable in Admin › Paramètres, default 7). Mobile-first responsive (`w-[calc(100vw-2rem)]`, `max-h-[90vh]`).
+- **ProductModal mobile fix** : compact image (h-40), reduced padding (p-5), sticky bottom action bar, no overflow
+- **Cart page (`/panier`)** : validation-only, "Passer au paiement" navigates to `/checkout/:menuType`
+- **Checkout page (`/checkout/:menuType`)** NEW : shows créneau card with "Changer l'heure" button (re-opens OrderModePicker), récap, customer form, "Confirmer la commande CHF X"
+- **Sticky cart bar in Menu** simplified — "Voir le panier · CHF X" navigates to /panier (no more inline expand)
+- **Admin Commandes** : "Avancer →" replaced by contextual "✓ Confirmer la commande" (new) / "Marquer prêt" (preparing) / "Terminer" (ready). Added "**Refuser**" button (sets status="rejected"). Added "**Repousser →**" link under créneau — opens RescheduleDialog with day+10min-slot picker. New "Refusée" filter and status.
+- **Backend** : `PATCH /api/admin/orders/{id}/reschedule?pickup_time=...&pickup_time_label=...`. Added `rejected` to allowed status list. Added `epicerie_days_ahead` to settings (default 7).
+
 ## Backlog / Next
 - P1: Seed 5 real restaurant + 5 real épicerie products with `featured` flag for landing "Plats phares" (skipped for now — user to provide real names/prices)
 - P1: Stripe online payment (currently paiement sur place)
 - P1: Pushover push notifications (waiting on user)
 - P1: Real Resend API key hookup
-- P2: Delivery zone/fee configuration
-- P2: Client account with order history
+- P2: Notify customer by email on reject/reschedule
 - P2: Multi-language (IT/EN)

@@ -10,6 +10,7 @@ import Story from "@/pages/Story";
 import Contact from "@/pages/Contact";
 import OrderTracking from "@/pages/OrderTracking";
 import Cart from "@/pages/Cart";
+import Checkout from "@/pages/Checkout";
 import AdminDashboard, { AdminLogin } from "@/pages/Admin";
 import { CartProvider } from "@/context/CartContext";
 import { TEMP_MODE } from "@/config";
@@ -29,6 +30,7 @@ function AppRoutes() {
               <Route path="/commander" element={<Menu menuType="restaurant" />} />
               <Route path="/epicerie" element={<Menu menuType="epicerie" />} />
               <Route path="/panier" element={<Cart />} />
+              <Route path="/checkout/:menuType" element={<Checkout />} />
               <Route path="/suivi/:id" element={<OrderTracking />} />
               <Route path="/Angel/login" element={<AdminLogin />} />
               <Route path="/Angel/dashboard" element={<AdminDashboard />} />
@@ -43,6 +45,7 @@ function AppRoutes() {
               <Route path="/contact" element={<Contact />} />
               <Route path="/suivi/:id" element={<OrderTracking />} />
               <Route path="/panier" element={<Cart />} />
+              <Route path="/checkout/:menuType" element={<Checkout />} />
               <Route path="/Angel/login" element={<AdminLogin />} />
               <Route path="/Angel/dashboard" element={<AdminDashboard />} />
             </>
