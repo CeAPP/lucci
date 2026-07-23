@@ -1,0 +1,58 @@
+{
+  "summary": "Verified fix for iteration_4 HIGH bug: CeTEST reservation now renders in Admin Réservations tab with all fields populated. Landing page favicon and /reserver smoke checks also pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verification_results": {
+    "reservation_cetest": {
+      "status": "PASS",
+      "displayed_row": "CONFIRMED | 2026-07-20 · 19:30 | CeTEST Test · +41 79 000 00 00 · cetest@angeluccis.ch | Personnes : 2 · Commentaire : Réservation de test — CeTEST",
+      "checks": {
+        "first_name 'CeTEST Test'": "PASS",
+        "phone '+41 79 000 00 00'": "PASS",
+        "email 'cetest@angeluccis.ch'": "PASS",
+        "date '2026-07-20'": "PASS",
+        "time '19:30'": "PASS",
+        "people 2": "PASS",
+        "status 'confirmed'": "PASS",
+        "comment": "PASS"
+      }
+    },
+    "landing_page": {
+      "status": "PASS",
+      "title": "Angelucci's — Restaurant italien & épicerie fine à Lausanne | Farmacia Angelucci",
+      "favicon_href": "https://customer-assets.emergentagent.com/job_pizzeria-app-26/artifacts/jwci5np5_LOgo%20angelucci.png",
+      "favicon_http_status": 200,
+      "logo_link_visible": true
+    },
+    "reserver_page": {
+      "status": "PASS",
+      "form_present": true,
+      "date_picker": "custom shadcn-style calendar (juillet 2026 shown)",
+      "time_slots_rendered": true,
+      "people_selector_1_to_9plus": true
+    }
+  },
+  "observations": [
+    "Noted a leftover order card '#CeTEST-0001' (CeTEST Test) still visible under Commandes → Toutes/En attente. Agent note said this was cleaned up, but it is still present. Not part of the current task scope but flagging for visibility.",
+    "Reservations list also contains multiple older TESTPW_Alice / TEST_Alice reservations — these appear to be legacy test data from prior iterations."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "OPTIONAL: If desired, clean up leftover CeTEST-0001 order and older TEST_Alice reservations from DB for a cleaner admin view (not blocking)."
+  ],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100%"},
+  "test_credentials": "AngelCED26 / CE26$Lucc (admin) — worked correctly",
+  "seed_data_creation": "No new seed data created; verified previously-inserted CeTEST reservation.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration_4 HIGH bug (empty reservation fields) is fully resolved. Reservation R-CeTEST-01 now displays flat schema fields correctly. Landing favicon and /reserver still work. Minor housekeeping: a CeTEST-0001 order card still shows in Commandes tab despite prior cleanup claim."
+}
