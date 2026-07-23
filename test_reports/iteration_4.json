@@ -1,0 +1,49 @@
+{
+  "summary": "Iteration 4 — Frontend-only verification of favicon/SEO, /reserver reactivation, CeTEST test products (restaurant + épicerie), admin CeTEST-0001 order card actions, and full E2E order flow menu→cart→checkout→tracking. All primary flows pass. Only issue: the seeded reservation R-CeTEST-01 renders with EMPTY customer_name, phone, email and party_size in the admin Réservations tab (date/time '2026-07-20 · 19:30' + status NEW are correct). One environment note: the SEO/OG/JSON-LD tags in /app/frontend/public/index.html were NOT initially reflected in the dev-server response — a supervisor `frontend restart` was required to pick them up. After restart, curl confirms all favicon/OG/twitter/geo/JSON-LD tags are served correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Admin › Réservations tab (Admin.jsx ReservationsTab)",
+        "issue": "Seeded reservation R-CeTEST-01 displays as: 'NEW 2026-07-20 · 19:30 / · · / Personnes :' — the customer name, phone, email and party_size are all blank. The reservation is correctly listed by date/time but the render shows empty separators. Root cause is likely one of: (a) the seed inserted the doc with keys that don't match Reservation model (e.g. 'name' vs 'customer_name', 'guests' vs 'party_size'), or (b) admin list endpoint /api/admin/reservations returns those fields as null for this record. All other reservations in the list (TEST_Alice, TESTPW_Alice) render fully.",
+        "selector": "reservations tab card with date 2026-07-20 · 19:30",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Menu › Admin (Restaurant products)", "issues": ["Leftover 'TEST_Product' (CHF 12.50) from previous iteration still visible in Antipasti on both public /commander and admin Menu tab. Should be cleaned up from the seeded DB."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "action_items": [
+    "Investigate why the seeded reservation R-CeTEST-01 has empty customer_name / phone / email / party_size in the admin listing. Verify the MongoDB doc actually contains name='CeTEST Test', phone, email, party_size=2 with the correct keys matched by the ReservationOut Pydantic model. Re-seed or PATCH the doc to fix.",
+    "Delete leftover 'TEST_Product' from Antipasti (previous iteration seed). Not blocking but pollutes public menu.",
+    "IMPORTANT: index.html changes in a CRA dev server require a webpack/dev-server restart to be picked up. Because the deployment relies on `craco start` (via supervisor), any change to /app/frontend/public/index.html should trigger `sudo supervisorctl restart frontend`. Consider documenting this or moving SEO tags to react-helmet-async so they hot-reload."
+  ],
+  "critical_code_review_comments": [
+    "SEO/OG/favicon/JSON-LD in /app/frontend/public/index.html look correct and complete: og:type=restaurant.restaurant, og:image + favicon → Angelucci's logo, twitter:card summary_large_image, geo.region=CH-VD, address 'Av. William-Fraisse 1' with postalCode 1006 Lausanne inside a Restaurant + Store JSON-LD @graph. Description mentions Lausanne, restaurant italien, épicerie. Solid schema.org coverage.",
+    "TEMP_MODE routing correctly re-enables /reserver — page loads with date grid, time slots, guests picker, form fields and 'Réserver ma table' CTA.",
+    "OrderModePicker exposes proper data-testids (slot-asap, today-time-*, time-*) that make automation easy.",
+    "Checkout page exposes checkout-first-name / checkout-last-name / checkout-phone / checkout-email / checkout-promo / change-time-btn / submit-order-btn — all reachable programmatically. Great DX.",
+    "OrderTracking page (/suivi/{id}) content after a successful submit appears to render the /commander Menu component (title 'Il Ristorante', 'Aucun produit disponible', category list). Please verify the actual UX at /suivi/{id} is intended to look like a Menu-shell — it may be confusing to the customer expecting an order-status screen. Possibly a route mismatch or the tracking page reuses Menu layout without content.",
+    "Admin Réservations rendering: the card layout gracefully leaves blank slots for missing fields (no crash) but this masks bad seed data. Consider defaulting to '—' or 'Sans nom' so operators notice.",
+    "Cart persistence bug from iteration_3 (localStorage race in CartContext) — did NOT reproduce this run because I opened cart via the sticky bar (SPA navigation preserves state). Not re-verified with a hard reload; still applies per iteration_3 notes."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "not tested (frontend-only request)",
+    "frontend": "10/11 checks pass (~91%) — only failure: R-CeTEST-01 empty fields in admin reservations list"
+  },
+  "test_credentials": "Owner: AngelCED26 / CE26$Lucc (verified working). Staff: AnCED25 / 26$LuANG.",
+  "seed_data_creation": "Created one live restaurant order 'Test E2E / +41791234567 / e2e@test.ch' during E2E flow (order id 2d566398-f637-45ee-b141-763cffe7fd8b) — moved to Refusée status by the reject-flow test. Consider cleanup.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 4 verified: (1) SEO/favicon after frontend restart, (2) /reserver back online, (3) CeTEST — Plat test in /commander Antipasti @ CHF 12.50, (4) CeTEST — Produit test épicerie in /epicerie Fromages @ CHF 8.90, (5) admin Commandes shows CeTEST-0001 with correct RESTAURANT banner, 'Dès que possible (test)', 'Commande de test — CeTEST' note, and all 4 action controls (Confirmer / Refuser / delete / Repousser). (6) E2E order created via UI + redirect to /suivi/{id}, (7) Reject flow moves order to Refusée (1) filter, (8) Repousser modal shows 8-day chips + 10-min time slots, (9) Mobile 390×844 checkout has no horizontal overflow and product modal is readable. Only failing item: R-CeTEST-01 shows blank customer/phone/email/guests — please have main agent inspect the seed doc / Reservation model field names.",
+  "rca of the issue": "R-CeTEST-01 empty fields RCA: the admin Réservations tab rendered card is missing customer_name, phone, email, party_size while another seeded doc (TESTPW_Alice, TEST_Alice) renders them fully. The rendering logic is uniform, so this is a data-shape issue with THIS record only. Likely mismatch between the seed script keys (e.g. `name`, `guests`) and the Pydantic Reservation model / MongoDB stored keys (e.g. `customer_name`, `party_size`). Mitigation: (a) fetch GET /api/admin/reservations, find id R-CeTEST-01, inspect the returned JSON keys; (b) either update seed doc via mongosh with correct keys or PATCH via admin API; (c) add a defensive display fallback ('—') so blank data is visible to operators."
+}

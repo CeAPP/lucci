@@ -29,6 +29,7 @@ function AppRoutes() {
             <>
               <Route path="/commander" element={<Menu menuType="restaurant" />} />
               <Route path="/epicerie" element={<Menu menuType="epicerie" />} />
+              <Route path="/reserver" element={<Reservation />} />
               <Route path="/panier" element={<Cart />} />
               <Route path="/checkout/:menuType" element={<Checkout />} />
               <Route path="/suivi/:id" element={<OrderTracking />} />
