@@ -1,0 +1,77 @@
+{
+  "summary": "Frontend-only verification of newly seeded 'Testt' data. All 5 requested checks PASSED across customer menus and admin dashboard.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "verification_results": {
+    "restaurant_menu_commander": {
+      "status": "PASS",
+      "checks": {
+        "'Testt — Plat test' in Antipasti": "PASS",
+        "price CHF 15.00": "PASS",
+        "description 'Produit de test restaurant — Testt. Ne pas commander.'": "PASS",
+        "reached via slot-asap": "PASS"
+      }
+    },
+    "epicerie_menu": {
+      "status": "PASS",
+      "checks": {
+        "'Testt — Produit test épicerie' in Fromages": "PASS",
+        "price CHF 9.50": "PASS",
+        "reached via slot-asap": "PASS"
+      }
+    },
+    "admin_commandes_tab": {
+      "status": "PASS",
+      "order": "#Testt-0001",
+      "checks": {
+        "big RESTAURANT banner": "PASS (visible, but rendered in slate/blue-gray tone rather than terracotta as described in request — same as existing CeTEST-0001 banner, so this is the current app-wide restaurant banner color, not a Testt-specific regression)",
+        "customer 'Testt Test'": "PASS",
+        "phone '+41 79 111 11 11'": "PASS",
+        "créneau 'Dès que possible (test)'": "PASS",
+        "status 'En attente de confirmation'": "PASS",
+        "total CHF 15.00": "PASS",
+        "'Confirmer la commande' green btn": "PASS",
+        "'Refuser' red-outline btn": "PASS",
+        "delete icon": "PASS",
+        "'Repousser →' link under créneau": "PASS"
+      }
+    },
+    "admin_reservations_tab": {
+      "status": "PASS",
+      "displayed": "CONFIRMED | 2026-07-22 · 20:00 | Testt Test · +41 79 111 11 11 · testt@angeluccis.ch | Personnes : 4 · Commentaire : Réservation de test — Testt",
+      "checks": {
+        "customer 'Testt Test'": "PASS",
+        "date '2026-07-22'": "PASS",
+        "time '20:00'": "PASS",
+        "people 4": "PASS",
+        "phone '+41 79 111 11 11'": "PASS",
+        "email 'testt@angeluccis.ch'": "PASS",
+        "status confirmed": "PASS"
+      }
+    },
+    "admin_menu_tab_produits": {
+      "status": "PASS",
+      "checks": {
+        "'Testt — Plat test' visible under RESTAURANT filter": "PASS",
+        "'Testt — Produit test épicerie' visible under EPICERIE filter": "PASS (must switch filter via data-testid=filter-menu-epicerie; default view is RESTAURANT)"
+      }
+    }
+  },
+  "observations": [
+    "The RESTAURANT banner in Commandes cards renders in a slate/blue-gray color for both Testt-0001 and CeTEST-0001, not terracotta. Request wording described it as terracotta — flagging as an observation (not a Testt-seed issue, applies globally).",
+    "Both CeTEST and Testt seed rows coexist correctly in menus, orders, reservations and admin product list — no data conflict.",
+    "Legacy TESTPW_Alice / TEST_Alice reservations still present in Réservations tab (pre-existing test noise from earlier iterations)."
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "OPTIONAL: If terracotta banner was intended, main agent may want to update the Commandes card banner color for menu_type='restaurant' (currently slate). Applies to CeTEST-0001 as well, so this is not caused by the new Testt seed."
+  ],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100% (5/5 verification blocks pass)"},
+  "test_credentials": "AngelCED26 / CE26$Lucc (admin) — worked correctly",
+  "seed_data_creation": "No new seed data created; verified pre-inserted Testt product/order/reservation entries.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All Testt seed rows render correctly across /commander (Antipasti), /epicerie (Fromages), admin Commandes (#Testt-0001 with all buttons/labels), admin Réservations (2026-07-22 20:00, 4 pax), and admin Menu (both RESTAURANT and EPICERIE filters). Minor visual observation: RESTAURANT banner in Commandes cards is slate-blue, not terracotta — pre-existing, not caused by this seed."
+}
