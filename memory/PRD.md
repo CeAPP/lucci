@@ -46,6 +46,23 @@ Full-stack website for Farmacia Angelucci (branded ANGELUCCI'S) — Italian rest
 - **Mobile responsive fix**: rewrote Landing hero (mobile shows centered logo → text → CTAs → image, no absolute-positioned overlap); scaled down all section paddings/typography for mobile; single-column stacked layouts; address+phone stacked
 - To re-enable full site: flip `TEMP_MODE` to `false` in `/app/frontend/src/config.js`
 
+## Implemented (2026-02 — SEO + favicon + test data + /reserver online)
+- **Favicon** : logo Angelucci's utilisé comme favicon + apple-touch-icon (via URL customer-assets)
+- **SEO complet** dans `/app/frontend/public/index.html` :
+  - Title/description optimisés (« Restaurant italien & épicerie fine à Lausanne » + mots-clés géolocalisés)
+  - Open Graph (og:type=restaurant.restaurant, og:image=logo, og:locale=fr_CH)
+  - Twitter Card summary_large_image
+  - Geo tags (geo.region=CH-VD, geo.position=46.5197;6.6323, geo.placename=Lausanne)
+  - JSON-LD structured data : @Restaurant + @Store avec adresse Av. William-Fraisse 1, 1006 Lausanne, geo, telephone, hasMenu, servesCuisine, acceptsReservations
+  - Canonical URL vers production
+- **`/reserver` remis en ligne** (ajouté aux routes TEMP_MODE)
+- **Test data seeded** (via /tmp/seed_test.py) :
+  - Produit `CeTEST — Plat test` (Antipasti restaurant, CHF 12.50)
+  - Produit `CeTEST — Produit test épicerie` (Fromages épicerie, CHF 8.90)
+  - Commande `#CeTEST-0001` (restaurant, en attente de confirmation, CeTEST Test)
+  - Réservation CeTEST Test (2026-07-20 à 19:30, 2 personnes, confirmed)
+- Note : les changements sur `public/index.html` nécessitent un `supervisorctl restart frontend` pour être picked up par le dev server
+
 ## Implemented (2026-02 — Delivery removed + Cart/Checkout split + Admin actions)
 - Delivery mode entirely removed — takeaway only; VAT always 2.6%
 - `/commander` (restaurant) and `/epicerie` re-opened in TEMP_MODE
