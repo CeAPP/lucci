@@ -22,6 +22,13 @@ export function AdminLogin() {
   const [p, setP] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const [expired, setExpired] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("expired=1")) {
+      setExpired(true);
+    }
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -44,6 +51,11 @@ export function AdminLogin() {
         <h1 className="font-display text-3xl text-center mb-2">Espace Admin</h1>
         <p className="text-center text-cream/50 text-xs tracking-widest uppercase mb-10">Angelucci's</p>
         <div className="space-y-4">
+          {expired && (
+            <div className="border border-amber-500/50 bg-amber-500/10 text-amber-200 text-sm p-3" data-testid="expired-notice">
+              Votre session a expiré. Reconnectez-vous pour continuer.
+            </div>
+          )}
           <div>
             <Label className="text-xs tracking-widest uppercase text-cream/70">Nom d'utilisateur</Label>
             <Input value={u} onChange={(e) => setU(e.target.value)} data-testid="admin-username"
@@ -547,6 +559,7 @@ function BulkUploadDialog({ defaultMenu, cats, onClose, onDone }) {
     setBusy(true);
     setDone(0);
     let ok = 0;
+    let authFailed = false;
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       if (r.status === "done") { ok++; setDone((d) => d + 1); continue; }
@@ -562,13 +575,23 @@ function BulkUploadDialog({ defaultMenu, cats, onClose, onDone }) {
         updateRow(i, { status: "done" });
         ok++;
       } catch (e) {
-        updateRow(i, { status: "error", error: e.response?.data?.detail || "erreur" });
+        const status = e?.response?.status;
+        if (status === 401 || status === 403) { authFailed = true; break; }
+        updateRow(i, { status: "error", error: e?.response?.data?.detail || e.message || "erreur" });
       }
       setDone((d) => d + 1);
     }
     setBusy(false);
-    toast.success(`${ok} produit${ok > 1 ? "s" : ""} créé${ok > 1 ? "s" : ""}`);
-    setTimeout(() => onDone(), 800);
+    if (authFailed) {
+      toast.error("Session expirée — reconnexion nécessaire");
+      return;
+    }
+    if (ok > 0) {
+      toast.success(`${ok} produit${ok > 1 ? "s" : ""} créé${ok > 1 ? "s" : ""}`);
+      setTimeout(() => onDone(), 800);
+    } else {
+      toast.error("Aucun produit n'a pu être créé. Vérifiez les erreurs par ligne.");
+    }
   };
 
   return (
@@ -765,10 +788,17 @@ function CategoriesEditor({ cats, onChange, editing, setEditing }) {
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <Button onClick={async () => {
-                if (editing.id) await api.put(`/categories/${editing.id}`, editing);
-                else await api.post("/categories", editing);
-                setEditing(null); onChange();
+              <Button data-testid="cat-save-btn" onClick={async () => {
+                try {
+                  if (!editing.name?.trim()) { toast.error("Nom obligatoire"); return; }
+                  if (editing.id) await api.put(`/categories/${editing.id}`, editing);
+                  else await api.post("/categories", editing);
+                  toast.success("Catégorie enregistrée");
+                  setEditing(null); onChange();
+                } catch (e) {
+                  const s = e?.response?.status;
+                  toast.error(s === 401 || s === 403 ? "Session expirée — reconnexion en cours" : `Erreur : ${e?.response?.data?.detail || e.message}`);
+                }
               }} className="flex-1 bg-brand hover:bg-brand-hover text-cream rounded-none uppercase tracking-widest">Enregistrer</Button>
               <Button variant="outline" onClick={() => setEditing(null)} className="rounded-none border-ink/20">Annuler</Button>
             </div>

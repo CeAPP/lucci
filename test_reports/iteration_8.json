@@ -1,0 +1,27 @@
+{
+  "summary": "Frontend-only regression for the 401/403 axios response interceptor and 'expired' UX. Verified: clean login page shows no banner; normal login works; category happy-path creation shows success toast; bulk upload happy-path creates product with success toast; navigating to /Angel/dashboard with a bad token redirects to /Angel/login?expired=1 and displays the amber 'expired-notice' banner. Cleanup of test artifacts done via API. One supplementary scenario (breaking token mid-session then clicking cat-save) could not be exercised because the CRA webpack-dev-server error overlay iframe intercepted pointer events in dev mode — but the same interceptor logic is proven by the fresh-navigation bad-token test.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin dialogs (category editor / reschedule / bulk upload)", "issues": ["Radix Dialog warning: 'Missing Description or aria-describedby' logged in console for several DialogContent instances — accessibility polish."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "api.js interceptor correctly scopes redirect to /Angel/* pages and non-GET writes on collections — this avoids infinite loops and does not break public GETs. Good.",
+    "Admin.jsx is 1298 lines — recommend splitting AdminLogin, OrdersView, CategoriesEditor, BulkUploadDialog, PromoEditor into separate files for maintainability (>700-line guideline).",
+    "BulkUploadDialog.submit short-circuits on 401/403 with a French toast — good, but token is not cleared here (relies on interceptor to redirect). Acceptable because interceptor handles both.",
+    "Radix Dialog a11y warnings should be silenced by adding <DialogDescription> or aria-describedby on cat/bulk/reschedule dialogs."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (skipped per request)", "frontend": "100% on primary scenarios (5/5); 1 supplementary scenario blocked by dev-overlay only"},
+  "test_credentials": "Admin: AngelCED26 / CE26$Lucc (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Created 1 category 'TEST_INTERCEPTOR_CAT' and 1 product 'InterceptorTest' (4.20 CHF) during happy-path tests. Both deleted via API cleanup at end of run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Interceptor is live in /app/frontend/src/lib/api.js. Expired banner is data-testid='expired-notice' triggered by ?expired=1 URL param on /Angel/login. Category save button = cat-save-btn, bulk upload submit = upload-submit-btn. To simulate expired: localStorage.setItem('angel_token','bad.jwt.token') then navigate to /Angel/dashboard — expect redirect to /Angel/login?expired=1 with amber banner. Note: in dev (webpack) an error-overlay iframe may intercept pointer events after uncaught 401 rejections; this is a dev-only artifact and not present in production build.",
+  "rca of the issue": "N/A — this iteration verified the fix works. Original RCA (from post_deployment_agent): admin JWT (24h) expired silently; frontend had no 401 handler so POSTs failed without user feedback. Fix adds a response interceptor + local try/catch toasts + login-page banner via ?expired=1."
+}
