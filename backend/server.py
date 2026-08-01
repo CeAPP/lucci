@@ -1,5 +1,6 @@
 """Angelucci's — FastAPI backend."""
 import os
+import re
 import uuid
 import logging
 import shutil
@@ -419,6 +420,87 @@ async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_cur
     with dest.open("wb") as f:
         shutil.copyfileobj(file.file, f)
     return {"url": f"/api/uploads/{name}"}
+
+
+def _parse_product_filename(filename: str) -> dict:
+    """Extract name + price from a filename like 'Tagliatelles al ragù 26.50.jpg'."""
+    stem = Path(filename).stem
+    # Find all number tokens (int or decimal, . or ,)
+    matches = list(re.finditer(r"\d+[.,]\d+|\d+", stem))
+    price = 0.0
+    name_part = stem
+    if matches:
+        last = matches[-1]
+        try:
+            price = float(last.group().replace(",", "."))
+        except ValueError:
+            price = 0.0
+        # Everything before the price = candidate name
+        candidate = stem[: last.start()]
+        if candidate.strip(" _-.,"):
+            name_part = candidate
+    # Clean the name: replace separators, drop currency suffixes
+    name_clean = re.sub(r"[_\-.,]+", " ", name_part)
+    name_clean = re.sub(r"\s+", " ", name_clean).strip()
+    name_clean = re.sub(r"\s*(chf|fr|€|\$|eur)\s*$", "", name_clean, flags=re.IGNORECASE).strip()
+    if not name_clean:
+        name_clean = re.sub(r"[_\-.,]+", " ", stem).strip()
+    return {"name": name_clean, "price": round(price, 2)}
+
+
+@api.post("/admin/products/upload")
+async def upload_product_from_image(
+    file: UploadFile = File(...),
+    menu_type: str = "restaurant",
+    category_id: str = "",
+    user: dict = Depends(get_current_user),
+):
+    """Upload a product image; auto-parse name + price from filename."""
+    ext = Path(file.filename).suffix.lower()
+    if ext not in [".jpg", ".jpeg", ".png", ".webp", ".gif"]:
+        raise HTTPException(400, "Format non supporté")
+    if menu_type not in ("restaurant", "epicerie"):
+        raise HTTPException(400, "menu_type invalide")
+
+    # Save file
+    img_name = f"{uuid.uuid4().hex}{ext}"
+    dest = UPLOAD_DIR / img_name
+    with dest.open("wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    # Parse filename
+    parsed = _parse_product_filename(file.filename)
+
+    # Auto-pick a category if none provided
+    if not category_id:
+        cat = await db.categories.find_one({"menu_type": menu_type})
+        if not cat:
+            raise HTTPException(400, "Aucune catégorie disponible pour ce menu")
+        category_id = cat["id"]
+
+    doc = {
+        "id": str(uuid.uuid4()),
+        "name": parsed["name"] or "Nouveau produit",
+        "description": "",
+        "price": parsed["price"],
+        "image_url": f"/api/uploads/{img_name}",
+        "category_id": category_id,
+        "menu_type": menu_type,
+        "addon_group_ids": [],
+        "out_of_stock_until": None,
+        "is_active": True,
+        "created_at": now_iso(),
+    }
+    await db.products.insert_one(doc.copy())
+    return {
+        "id": doc["id"],
+        "name": doc["name"],
+        "price": doc["price"],
+        "image_url": doc["image_url"],
+        "menu_type": doc["menu_type"],
+        "category_id": doc["category_id"],
+        "parsed_from": file.filename,
+    }
 
 
 # ==================== ORDERS ====================

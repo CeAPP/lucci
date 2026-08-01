@@ -1,0 +1,47 @@
+{
+  "summary": "Bulk image upload feature (Admin > Menu > Produits) fully tested — backend endpoint POST /api/admin/products/upload and frontend BulkUploadDialog. 8/8 pytest backend tests pass, full Playwright E2E flow passes (login → open modal → 4 files parsed correctly → edit Ossobuco price → submit → verify products exist with /api/uploads/ image_url → épicerie single-file flow → cleanup 5 products).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "verification_results": {
+    "backend": {
+      "POST /api/admin/products/upload (restaurant, 4 filenames)": "PASS — all filenames parsed exactly as expected: 'Tagliatelles al ragù 26.50.jpg'→(Tagliatelles al ragù,26.5), 'Parmigiano_24_mois_18.90.png'→(Parmigiano 24 mois,18.9), 'Ossobuco - 32 CHF.webp'→(Ossobuco,32.0), 'Simple pasta.jpg'→(Simple pasta,0.0)",
+      "POST /api/admin/products/upload (menu_type=epicerie)": "PASS — 'Huile olive Toscana 12.50.jpg'→(Huile olive Toscana,12.5), menu_type=epicerie",
+      "Products persistence (GET /api/products)": "PASS — all uploaded products retrievable, image_url starts with /api/uploads/",
+      "Invalid extension rejected (.txt)": "PASS — returns 400",
+      "Auth required": "PASS — returns 401/403 without bearer token"
+    },
+    "frontend_e2e": {
+      "Login as AngelCED26 & navigate to Menu>Produits": "PASS",
+      "'Uploader depuis image' button (data-testid=bulk-upload-btn)": "PASS visible & clickable",
+      "Modal opens with data-testid=bulk-upload-dialog": "PASS",
+      "upload-menu-restaurant / upload-menu-epicerie toggles": "PASS",
+      "upload-dropzone label + upload-file-input (with 'multiple' attribute)": "PASS (input is intentionally hidden CSS; setInputFiles works)",
+      "4 files uploaded via setInputFiles → 4 rows spawned": "PASS",
+      "Parsed name+price in upload-name-{i} & upload-price-{i}": "PASS for all 4 rows (matches backend parser)",
+      "upload-cat-{i} category dropdown present": "PASS",
+      "Edit upload-price-2 (Ossobuco) → 99.99, then Créer 4 produits": "PASS — all 4 rows completed, dialog auto-closes",
+      "Post-submit products verified via GET /api/products": "PASS — Tagliatelles al ragù 26.50, Parmigiano 24 mois 18.90, Ossobuco 99.99 (edited), Simple pasta 0.00, all with image_url starting /api/uploads/, menu_type=restaurant",
+      "Épicerie single-file flow (Huile olive Toscana 12.50)": "PASS — created under menu_type=epicerie with correct name/price/image_url",
+      "Cleanup: DELETE /api/products/{id} for all 5 uploaded": "PASS — all returned 200 and no residual /api/uploads/ products remain"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bulk_upload.py",
+    "/app/test_reports/pytest/bulk_upload.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor a11y: BulkUploadDialog emits console warning 'Missing Description or aria-describedby' — DialogTitle is sr-only but no DialogDescription. Non-blocking, but could be improved by adding a <DialogDescription> (visually hidden) for screen readers.",
+    "The `key={i}` used for upload rows relies on array index; safe here because removeRow re-indexes, but preview objectURLs are never revoked on removeRow → tiny memory leak. Non-blocking.",
+    "Backend endpoint accepts menu_type/category_id as query params for a multipart POST — works, but conventionally these belong in the form data. Existing design is fine, just noting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_bulk_upload.py (new pytest file)"
+  ],
+  "success_rate": {"backend": "100% (8/8 pytest)", "frontend": "100% (all E2E steps pass)"},
+  "test_credentials": "AngelCED26 / CE26$Lucc (admin, worked correctly)",
+  "seed_data_creation": "5 products were created during the test flow and all were deleted at end (verified no residual /api/uploads/ products remain).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Bulk image upload feature is fully working — filename parser (backend regex in _parse_product_filename + matching JS regex in BulkUploadDialog.parseFilename) correctly extracts name+price for all tested patterns including UTF-8 (ragù), underscore separators, ' - ' hyphens with 'CHF' suffix, and no-price case. Frontend re-serializes File with edited '{name} {price}.ext' so backend re-parses corrected values before insert. All data-testids listed in the request are present and functional. Pre-existing seed product 'Tagliatelles al ragù CHF 26.50' (with pexels image_url) coexists with new upload — the way to distinguish new uploads is `image_url.startswith('/api/uploads/')`."
+}

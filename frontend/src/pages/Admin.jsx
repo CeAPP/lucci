@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { LogOut, Bell, BellOff, Phone, Trash2, ChevronUp, ChevronDown, Plus, Pencil, Volume2, Copy, Download } from "lucide-react";
+import { LogOut, Bell, BellOff, Phone, Trash2, ChevronUp, ChevronDown, Plus, Pencil, Volume2, Copy, Download, Upload, X, CheckCircle2 } from "lucide-react";
 
 const LOGO = "https://customer-assets.emergentagent.com/job_pizzeria-app-26/artifacts/jwci5np5_LOgo%20angelucci.png";
 const DAY_LABELS = { mon: "Lundi", tue: "Mardi", wed: "Mercredi", thu: "Jeudi", fri: "Vendredi", sat: "Samedi", sun: "Dimanche" };
@@ -411,6 +411,7 @@ function MenuTab() {
   const [editingCat, setEditingCat] = useState(null);
   const [editingGroup, setEditingGroup] = useState(null);
   const [subtab, setSubtab] = useState("products");
+  const [showUpload, setShowUpload] = useState(false);
 
   const load = async () => {
     const [p, c, g] = await Promise.all([
@@ -454,9 +455,13 @@ function MenuTab() {
               {catsFor(filterMenu).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <Input placeholder="Rechercher" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs bg-transparent border-ink/20 rounded-none focus-visible:ring-brand" />
+            <Button onClick={() => setShowUpload(true)} data-testid="bulk-upload-btn"
+              variant="outline" className="ml-auto rounded-none border-brand text-brand hover:bg-brand hover:text-cream uppercase text-xs tracking-widest">
+              <Upload size={14} className="mr-1"/> Uploader depuis image
+            </Button>
             <Button onClick={() => setEditing({ menu_type: filterMenu, category_id: catsFor(filterMenu)[0]?.id, price: 0, addon_group_ids: [], is_active: true })}
               data-testid="new-product-btn"
-              className="ml-auto bg-brand hover:bg-brand-hover text-cream rounded-none uppercase text-xs tracking-widest"><Plus size={14} className="mr-1"/> Nouveau produit</Button>
+              className="bg-brand hover:bg-brand-hover text-cream rounded-none uppercase text-xs tracking-widest"><Plus size={14} className="mr-1"/> Nouveau produit</Button>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -480,6 +485,7 @@ function MenuTab() {
             ))}
           </div>
           {editing && <ProductEditor product={editing} cats={cats} groups={groups} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+          {showUpload && <BulkUploadDialog defaultMenu={filterMenu} cats={cats} onClose={() => setShowUpload(false)} onDone={() => { setShowUpload(false); load(); }} />}
         </>
       )}
 
@@ -492,6 +498,172 @@ function MenuTab() {
     </div>
   );
 }
+
+// =========== BULK UPLOAD DIALOG (auto-parse name + price from filename) ===========
+function BulkUploadDialog({ defaultMenu, cats, onClose, onDone }) {
+  const [menuType, setMenuType] = useState(defaultMenu || "restaurant");
+  const [rows, setRows] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(0);
+
+  const catsFor = (mt) => cats.filter((c) => c.menu_type === mt);
+
+  const parseFilename = (filename) => {
+    const stem = filename.replace(/\.[^.]+$/, "");
+    const matches = [...stem.matchAll(/\d+[.,]\d+|\d+/g)];
+    let price = 0;
+    let namePart = stem;
+    if (matches.length > 0) {
+      const last = matches[matches.length - 1];
+      price = parseFloat(last[0].replace(",", "."));
+      const candidate = stem.slice(0, last.index);
+      if (candidate.replace(/[_\-.,\s]/g, "")) namePart = candidate;
+    }
+    let name = namePart.replace(/[_\-.,]+/g, " ").replace(/\s+/g, " ").trim();
+    name = name.replace(/\s*(chf|fr|€|\$|eur)\s*$/i, "").trim();
+    return { name: name || stem, price: Math.round(price * 100) / 100 };
+  };
+
+  const onFiles = (files) => {
+    const arr = Array.from(files).map((file) => {
+      const parsed = parseFilename(file.name);
+      return {
+        file,
+        preview: URL.createObjectURL(file),
+        name: parsed.name,
+        price: parsed.price,
+        category_id: catsFor(menuType)[0]?.id || "",
+        status: "pending",
+      };
+    });
+    setRows((prev) => [...prev, ...arr]);
+  };
+
+  const updateRow = (i, patch) => setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const removeRow = (i) => setRows((rs) => rs.filter((_, idx) => idx !== i));
+
+  const submit = async () => {
+    if (rows.length === 0) return;
+    setBusy(true);
+    setDone(0);
+    let ok = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (r.status === "done") { ok++; setDone((d) => d + 1); continue; }
+      try {
+        const ext = r.file.name.match(/\.[^.]+$/)?.[0] || ".jpg";
+        // Rebuild file with edited name+price so backend parses consistently
+        const renamed = new File([r.file], `${r.name} ${r.price}${ext}`, { type: r.file.type });
+        const fd = new FormData();
+        fd.append("file", renamed);
+        await api.post(`/admin/products/upload?menu_type=${menuType}&category_id=${encodeURIComponent(r.category_id)}`, fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        updateRow(i, { status: "done" });
+        ok++;
+      } catch (e) {
+        updateRow(i, { status: "error", error: e.response?.data?.detail || "erreur" });
+      }
+      setDone((d) => d + 1);
+    }
+    setBusy(false);
+    toast.success(`${ok} produit${ok > 1 ? "s" : ""} créé${ok > 1 ? "s" : ""}`);
+    setTimeout(() => onDone(), 800);
+  };
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && !busy && onClose()}>
+      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-3xl !bg-cream border-ink/10 rounded-none p-0 max-h-[92vh] overflow-y-auto" data-testid="bulk-upload-dialog">
+        <DialogTitle className="sr-only">Uploader des produits</DialogTitle>
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-1">
+            <Upload size={20} className="text-brand" />
+            <h3 className="font-display text-2xl">Uploader des produits</h3>
+          </div>
+          <p className="text-sm text-muted2 mb-5">
+            Nommez vos images comme <code className="bg-cream-surface px-1.5 py-0.5 text-xs">Tagliatelles al ragù 26.50.jpg</code>. Le nom du produit et le prix sont extraits automatiquement du nom du fichier — vous pouvez tout corriger avant validation.
+          </p>
+
+          <div className="mb-4">
+            <p className="text-[10px] tracking-widest uppercase text-muted2 mb-2">Menu cible</p>
+            <div className="flex gap-2">
+              {["restaurant", "epicerie"].map((mt) => (
+                <button key={mt} onClick={() => { setMenuType(mt); setRows((rs) => rs.map((r) => ({ ...r, category_id: cats.find((c) => c.menu_type === mt)?.id || "" }))); }}
+                  data-testid={`upload-menu-${mt}`}
+                  className={`px-4 py-2 text-xs tracking-widest uppercase border ${menuType === mt ? "bg-brand text-cream border-brand" : "border-ink/20 hover:border-brand"}`}>
+                  {mt === "restaurant" ? "Restaurant" : "Épicerie"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label className="block border-2 border-dashed border-ink/20 hover:border-brand p-6 md:p-8 text-center cursor-pointer transition-colors mb-4"
+            data-testid="upload-dropzone">
+            <input type="file" accept="image/*" multiple className="hidden" data-testid="upload-file-input"
+              onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
+            <Upload size={26} className="mx-auto mb-2 text-brand" strokeWidth={1.5} />
+            <p className="font-display text-lg">Cliquez pour sélectionner vos images</p>
+            <p className="text-xs text-muted2 mt-1">JPG, PNG, WEBP · Format : « Nom du produit 12.90.jpg »</p>
+          </label>
+
+          {rows.length > 0 && (
+            <div className="space-y-3 mb-5">
+              {rows.map((r, i) => (
+                <div key={i} className="border border-ink/10 bg-cream p-3 flex flex-col sm:flex-row gap-3 items-start" data-testid={`upload-row-${i}`}>
+                  <img src={r.preview} alt="" className="w-full sm:w-20 h-32 sm:h-20 object-cover shrink-0" />
+                  <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-6 gap-2 items-start">
+                    <div className="sm:col-span-3">
+                      <Label className="text-[10px] tracking-widest uppercase text-muted2">Nom</Label>
+                      <Input value={r.name} onChange={(e) => updateRow(i, { name: e.target.value })}
+                        data-testid={`upload-name-${i}`}
+                        className="bg-transparent border-ink/20 rounded-none focus-visible:ring-brand mt-1 text-sm" />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] tracking-widest uppercase text-muted2">Prix (CHF)</Label>
+                      <Input type="number" step="0.10" value={r.price} onChange={(e) => updateRow(i, { price: parseFloat(e.target.value) || 0 })}
+                        data-testid={`upload-price-${i}`}
+                        className="bg-transparent border-ink/20 rounded-none focus-visible:ring-brand mt-1 text-sm" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label className="text-[10px] tracking-widest uppercase text-muted2">Catégorie</Label>
+                      <select value={r.category_id} onChange={(e) => updateRow(i, { category_id: e.target.value })}
+                        data-testid={`upload-cat-${i}`}
+                        className="w-full border border-ink/20 bg-transparent px-2 py-1.5 mt-1 text-sm">
+                        {catsFor(menuType).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 pt-4 sm:pt-6 self-start">
+                    {r.status === "done" && <CheckCircle2 size={20} className="text-emerald-700" />}
+                    {r.status === "error" && <span className="text-xs text-destructive">✕ {r.error}</span>}
+                    <button onClick={() => removeRow(i)} disabled={busy} className="text-muted2 hover:text-destructive p-1" data-testid={`upload-remove-${i}`}>
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-2 items-center justify-between">
+            <p className="text-xs text-muted2">
+              {rows.length > 0 && busy ? `Envoi : ${done}/${rows.length}` : `${rows.length} produit(s) prêt(s)`}
+            </p>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button variant="outline" onClick={onClose} disabled={busy}
+                className="flex-1 sm:flex-none rounded-none border-ink/20 uppercase text-xs tracking-widest">Annuler</Button>
+              <Button disabled={busy || rows.length === 0} onClick={submit} data-testid="upload-submit-btn"
+                className="flex-1 sm:flex-none bg-brand hover:bg-brand-hover text-cream rounded-none uppercase text-xs tracking-widest">
+                {busy ? "Envoi…" : `Créer ${rows.length} produit${rows.length > 1 ? "s" : ""}`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 function ProductEditor({ product, cats, groups, onClose, onSaved }) {
   const [p, setP] = useState({ id: product.id, name: product.name || "", description: product.description || "", price: product.price || 0, image_url: product.image_url || "", category_id: product.category_id, menu_type: product.menu_type || "restaurant", addon_group_ids: product.addon_group_ids || [], out_of_stock_until: product.out_of_stock_until, is_active: product.is_active !== false });
