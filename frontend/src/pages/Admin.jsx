@@ -424,12 +424,14 @@ function MenuTab() {
   const [editingGroup, setEditingGroup] = useState(null);
   const [subtab, setSubtab] = useState("products");
   const [showUpload, setShowUpload] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const load = async () => {
     const [p, c, g] = await Promise.all([
       api.get("/products/all"), api.get("/categories"), api.get("/addon-groups"),
     ]);
     setProducts(p.data); setCats(c.data); setGroups(g.data);
+    setRefreshKey((k) => k + 1);
   };
   useEffect(() => { load(); }, []);
 
@@ -491,7 +493,7 @@ function MenuTab() {
             </Button>
           </div>
 
-          <TagOOSPanel onChange={load} />
+          <TagOOSPanel onChange={load} refreshKey={refreshKey} />
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((p) => (
@@ -529,7 +531,7 @@ function MenuTab() {
 }
 
 // =========== TAG-BASED OUT-OF-STOCK PANEL ===========
-function TagOOSPanel({ onChange }) {
+function TagOOSPanel({ onChange, refreshKey }) {
   const [tags, setTags] = useState([]);
   const [selectedTag, setSelectedTag] = useState("");
   const [until, setUntil] = useState("");
@@ -541,7 +543,7 @@ function TagOOSPanel({ onChange }) {
       setTags(data);
     } catch (e) { /* ignore */ }
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [refreshKey]);
 
   const apply = async () => {
     if (!selectedTag) { toast.error("Choisissez une étiquette"); return; }
