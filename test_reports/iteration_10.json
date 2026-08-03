@@ -1,0 +1,68 @@
+{
+  "summary": "Iteration 10 — verified MongoDB-backed image storage, DELETE /api/admin/products/bulk, GET /api/admin/tags aggregation, POST /api/admin/tags/oos set+clear, and full frontend E2E tags/OOS flow. 9/9 pytest cases pass. Frontend admin flow: bulk-delete-btn, tag-oos-panel, tag-input, tag-add-btn, tag-chip/tag-remove, tag-pill, tag-oos-select, tag-oos-until, tag-oos-apply, tag-clear all functional. Réactiver toast + confirm accepted successfully.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Product save → TagOOSPanel refresh",
+        "issue": "TagOOSPanel does not auto-refresh when a product is saved from the ProductEditor. The tag list only re-fetches on mount or after its own apply/clearTag. User must manually reload the page to see newly added tags. Manifests as: after adding 'e2etag' to a product and saving, the pill/dropdown remain empty until the page is reloaded.",
+        "affected_selectors": ["[data-testid=tag-oos-panel]", "[data-testid=tag-pill-*]", "[data-testid=tag-oos-select]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_results": {
+    "backend_pytest": "9/9 PASS",
+    "details": {
+      "TestMongoUpload::test_upload_and_fetch_marker_bytes": "PASS — JPEG with BYTES_MARKER_XYZ123 uploaded via /api/admin/products/upload; GET /api/uploads/{name} returned 200, content-type=image/jpeg, body contained exact marker bytes.",
+      "TestMongoUpload::test_mongo_db_document_exists": "PASS — db.uploads document verified via direct motor query ({_id, data, content_type=image/jpeg, size>0}); marker bytes present in doc.data.",
+      "TestMongoUpload::test_cleanup_upload_doc": "PASS — upload doc removed from db.uploads.",
+      "TestBulkDelete::test_bulk_delete_noop_on_unknown_menu_type": "PASS — seeded __DISP1__/__DISP2__ epicerie products, DELETE /api/admin/products/bulk?menu_type=epicerie returned {ok:true, deleted_count>=2}; disposables gone from GET /api/products?menu_type=epicerie; existing epicerie products restored via re-POST.",
+      "TestTags::test_create_product_with_tags": "PASS — created __TAG_TEST__ restaurant product with tags=['salami','viande'].",
+      "TestTags::test_list_tags_contains_salami_viande": "PASS — GET /api/admin/tags returned both tags with product_count>=1, oos_products=0, oos_until=null.",
+      "TestTags::test_set_tag_oos": "PASS — POST /api/admin/tags/oos?tag=salami&until=2026-08-15 → {ok, affected>=1, tag:'salami', until:'2026-08-15'}. GET /api/products/all confirms out_of_stock_until='2026-08-15' on __TAG_TEST__.",
+      "TestTags::test_clear_tag_oos": "PASS — POST with until= clears OOS; out_of_stock_until back to null.",
+      "TestTags::test_cleanup_tag_product": "PASS — DELETE /api/products/{id} removed test product."
+    },
+    "frontend_e2e": {
+      "login": "PASS",
+      "bulk-delete-btn_present": "PASS (1 instance in Menu > Produits toolbar)",
+      "tag-oos-panel_present": "PASS (above products grid)",
+      "ProductEditor tag-input/tag-add-btn": "PASS",
+      "add tag via Enter key": "PASS — tag-chip-e2etag rendered",
+      "remove tag via × button": "PASS — chip disappeared",
+      "add tag via + button": "PASS",
+      "save product persists tag": "PASS (verified via GET /api/admin/tags)",
+      "tag-pill-e2etag in TagOOSPanel": "PASS (after page reload)",
+      "select e2etag from tag-oos-select": "PASS (native select_option)",
+      "tag-oos-until date input": "PASS",
+      "tag-oos-apply → OOS badge + tag-clear-e2etag link": "PASS — pill shows 'Rupture' badge and 'jusqu\\'au 2026-12-31'",
+      "réactiver (tag-clear-e2etag) with confirm accept": "PASS — toast 'Rupture retirée pour 1 produit(s)' shown, tag-clear removed",
+      "cleanup product": "PASS — e2etag chip removed and saved"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter10_mongo_uploads_tags.py",
+    "/app/test_reports/pytest/iter10.xml"
+  ],
+  "action_items": [
+    "Consider making TagOOSPanel re-fetch /api/admin/tags when parent MenuTab.load() runs after a product save. Simplest fix: pass a `refreshKey` prop that changes on save and re-runs the useEffect, or lift tags state to the parent. Currently users must reload the page to see newly added/removed tags in the panel.",
+    "Server-side: the `existing epicerie products` schema restore requires image_url as string (not null). Product model in server.py accepts image_url: str = '' but rejects null — consider Optional[str] for defensive imports."
+  ],
+  "critical_code_review_comments": [
+    "server.py — 911 lines; still above 700 threshold. Split by domain (products, uploads, admin/tags, orders).",
+    "storage.py — clean, portable, MongoDB-backed. No external dependency. Correct fallback in serve_upload for legacy on-disk files.",
+    "Admin.jsx — 1445 lines, heavy monolith. TagOOSPanel + ProductEditor + MenuTab live in same file; consider extracting into /components/admin/.",
+    "TagOOSPanel: no auto-refresh on external product changes (integration gap listed above)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter10_mongo_uploads_tags.py (new)"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% (all critical selectors + full E2E OOS-by-tag flow)"},
+  "test_credentials": "AngelCED26 / CE26$Lucc (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Restored 1 epicerie product 'Parmigiano Reggiano 24 mois (250g)' which was inadvertently lost during the first bulk-delete run (before restore-loop was fixed). Final state: 1 epicerie product, 0 test tags remaining.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "MongoDB-backed uploads (db.uploads), bulk product delete, tags aggregation and tag-based OOS are all working end-to-end. Reusable regression file: /app/backend/tests/test_iter10_mongo_uploads_tags.py (9 tests, ~3s). Note: TagOOSPanel doesn't auto-refresh after product save — E2E flow requires page.reload() between saving a tagged product and interacting with the panel."
+}

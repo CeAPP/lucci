@@ -32,7 +32,7 @@ logger = logging.getLogger("angeluccis")
 UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "/app/backend/uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-# Persistent object storage helper (survives redeploys)
+# Portable image storage — MongoDB backed (no external services required)
 import storage as objstore  # noqa: E402
 
 client = AsyncIOMotorClient(os.environ["MONGO_URL"])
@@ -40,15 +40,6 @@ db = client[os.environ["DB_NAME"]]
 
 app = FastAPI(title="Angelucci's API")
 api = APIRouter(prefix="/api")
-
-
-@app.on_event("startup")
-async def _startup_storage():
-    try:
-        objstore.init_storage()
-        logger.info("Object storage initialized")
-    except Exception as e:
-        logger.warning(f"Object storage init failed (will retry on first upload): {e}")
 
 
 def now_iso() -> str:
@@ -100,6 +91,7 @@ class Product(BaseModel):
     category_id: str
     menu_type: str  # restaurant | epicerie
     addon_group_ids: List[str] = []
+    tags: List[str] = []
     out_of_stock_until: Optional[str] = None  # ISO date
     is_active: bool = True
     created_at: str = Field(default_factory=now_iso)
@@ -383,12 +375,58 @@ async def delete_product(pid: str, user: dict = Depends(get_current_user)):
     return {"ok": True}
 
 
+@api.delete("/admin/products/bulk")
+async def bulk_delete_products(menu_type: Optional[str] = None, user: dict = Depends(get_current_user)):
+    """Delete ALL products (optionally filter by menu_type: restaurant | epicerie)."""
+    q = {}
+    if menu_type in ("restaurant", "epicerie"):
+        q["menu_type"] = menu_type
+    r = await db.products.delete_many(q)
+    return {"ok": True, "deleted_count": r.deleted_count}
+
+
 @api.post("/products/{pid}/oos")
 async def set_oos(pid: str, until: str, user: dict = Depends(get_current_user)):
     """Mark out of stock until an ISO date (YYYY-MM-DD), or empty to clear."""
     val = until if until else None
     await db.products.update_one({"id": pid}, {"$set": {"out_of_stock_until": val}})
     return {"ok": True}
+
+
+@api.get("/admin/tags")
+async def list_tags(user: dict = Depends(get_current_user)):
+    """Aggregate all distinct tags across products, with count + OOS state per tag."""
+    pipeline = [
+        {"$unwind": {"path": "$tags", "preserveNullAndEmptyArrays": False}},
+        {"$group": {
+            "_id": "$tags",
+            "product_count": {"$sum": 1},
+            "oos_products": {"$sum": {"$cond": [{"$ifNull": ["$out_of_stock_until", False]}, 1, 0]}},
+            "oos_dates": {"$addToSet": "$out_of_stock_until"},
+        }},
+        {"$sort": {"_id": 1}},
+    ]
+    result = await db.products.aggregate(pipeline).to_list(500)
+    return [
+        {
+            "tag": r["_id"],
+            "product_count": r["product_count"],
+            "oos_products": r["oos_products"],
+            "oos_until": next((d for d in r["oos_dates"] if d), None),
+        }
+        for r in result
+    ]
+
+
+@api.post("/admin/tags/oos")
+async def set_tag_oos(tag: str, until: str = "", user: dict = Depends(get_current_user)):
+    """Mark all products bearing `tag` out of stock until an ISO date (empty = clear the OOS)."""
+    val = until if until else None
+    r = await db.products.update_many(
+        {"tags": tag},
+        {"$set": {"out_of_stock_until": val}},
+    )
+    return {"ok": True, "affected": r.modified_count, "tag": tag, "until": val}
 
 
 @api.post("/products/import-csv")
@@ -429,27 +467,20 @@ async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_cur
         raise HTTPException(400, "Format non supporté")
     name = f"{uuid.uuid4().hex}{ext}"
     data = await file.read()
-    try:
-        objstore.upload_image(name, data, ext)
-    except Exception as e:
-        logger.error(f"Object storage upload failed: {e}")
-        raise HTTPException(500, "Échec du stockage — réessayer")
+    await objstore.upload_image(db, name, data, ext)
     return {"url": f"/api/uploads/{name}"}
 
 
 @api.get("/uploads/{filename:path}")
 async def serve_upload(filename: str):
-    """Public image serving — tries persistent object storage first, then local fallback."""
-    # Prevent path traversal
+    """Public image serving — MongoDB storage first, then local disk fallback."""
     if "/" in filename or ".." in filename:
         raise HTTPException(400, "Bad filename")
-    # 1) Try object storage (new uploads)
-    try:
-        data, content_type = objstore.fetch_image(filename)
+    # 1) MongoDB (portable, persistent)
+    data, content_type = await objstore.fetch_image(db, filename)
+    if data:
         return Response(content=data, media_type=content_type, headers={"Cache-Control": "public, max-age=86400"})
-    except Exception:
-        pass
-    # 2) Fallback to local disk (older uploads still on the ephemeral disk of THIS deploy)
+    # 2) Local disk fallback (legacy files uploaded before Mongo storage)
     local = UPLOAD_DIR / filename
     if local.exists() and local.is_file():
         ext = local.suffix.lower()
@@ -499,14 +530,10 @@ async def upload_product_from_image(
     if menu_type not in ("restaurant", "epicerie"):
         raise HTTPException(400, "menu_type invalide")
 
-    # Save file to persistent object storage (survives redeploys)
+    # Save file to persistent MongoDB storage (portable — no external services)
     img_name = f"{uuid.uuid4().hex}{ext}"
     data = await file.read()
-    try:
-        objstore.upload_image(img_name, data, ext)
-    except Exception as e:
-        logger.error(f"Object storage upload failed for {file.filename}: {e}")
-        raise HTTPException(500, "Échec du stockage — réessayer")
+    await objstore.upload_image(db, img_name, data, ext)
 
     # Parse filename
     parsed = _parse_product_filename(file.filename)

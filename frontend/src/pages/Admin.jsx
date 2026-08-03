@@ -474,7 +474,24 @@ function MenuTab() {
             <Button onClick={() => setEditing({ menu_type: filterMenu, category_id: catsFor(filterMenu)[0]?.id, price: 0, addon_group_ids: [], is_active: true })}
               data-testid="new-product-btn"
               className="bg-brand hover:bg-brand-hover text-cream rounded-none uppercase text-xs tracking-widest"><Plus size={14} className="mr-1"/> Nouveau produit</Button>
+            <Button onClick={async () => {
+              const label = filterMenu === "restaurant" ? "restaurant" : "épicerie";
+              const filteredCount = products.filter((p) => p.menu_type === filterMenu).length;
+              if (!confirm(`Supprimer TOUS les ${filteredCount} produits du menu ${label} ? Action irréversible.`)) return;
+              try {
+                const { data } = await api.delete(`/admin/products/bulk?menu_type=${filterMenu}`);
+                toast.success(`${data.deleted_count} produit(s) supprimé(s)`);
+                load();
+              } catch (e) {
+                toast.error(`Erreur : ${e?.response?.data?.detail || e.message}`);
+              }
+            }} data-testid="bulk-delete-btn"
+              variant="outline" className="rounded-none border-destructive text-destructive hover:bg-destructive hover:text-cream uppercase text-xs tracking-widest">
+              <Trash2 size={14} className="mr-1"/> Tout supprimer
+            </Button>
           </div>
+
+          <TagOOSPanel onChange={load} />
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((p) => (
@@ -510,6 +527,106 @@ function MenuTab() {
     </div>
   );
 }
+
+// =========== TAG-BASED OUT-OF-STOCK PANEL ===========
+function TagOOSPanel({ onChange }) {
+  const [tags, setTags] = useState([]);
+  const [selectedTag, setSelectedTag] = useState("");
+  const [until, setUntil] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    try {
+      const { data } = await api.get("/admin/tags");
+      setTags(data);
+    } catch (e) { /* ignore */ }
+  };
+  useEffect(() => { load(); }, []);
+
+  const apply = async () => {
+    if (!selectedTag) { toast.error("Choisissez une étiquette"); return; }
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/admin/tags/oos?tag=${encodeURIComponent(selectedTag)}&until=${encodeURIComponent(until)}`);
+      toast.success(until
+        ? `${data.affected} produit(s) « ${selectedTag} » en rupture jusqu'au ${until}`
+        : `Rupture retirée pour ${data.affected} produit(s) « ${selectedTag} »`);
+      setSelectedTag(""); setUntil("");
+      load(); onChange && onChange();
+    } catch (e) {
+      toast.error(`Erreur : ${e?.response?.data?.detail || e.message}`);
+    } finally { setBusy(false); }
+  };
+
+  const clearTag = async (tag) => {
+    if (!confirm(`Retirer la rupture pour tous les produits « ${tag} » ?`)) return;
+    try {
+      const { data } = await api.post(`/admin/tags/oos?tag=${encodeURIComponent(tag)}&until=`);
+      toast.success(`Rupture retirée pour ${data.affected} produit(s)`);
+      load(); onChange && onChange();
+    } catch (e) {
+      toast.error(`Erreur : ${e?.response?.data?.detail || e.message}`);
+    }
+  };
+
+  return (
+    <div className="border border-ink/10 bg-cream-surface/60 p-4 mb-5" data-testid="tag-oos-panel">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div>
+          <p className="text-[10px] tracking-[.3em] uppercase text-brand">Rupture par étiquette</p>
+          <p className="text-xs text-muted2">Signalez la rupture de stock pour tous les produits portant une étiquette (ex : salami)</p>
+        </div>
+      </div>
+
+      {tags.length === 0 ? (
+        <p className="text-sm text-muted2">Aucune étiquette définie. Ajoutez des étiquettes sur vos produits pour les grouper.</p>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-1.5 mb-4" data-testid="tag-list-chips">
+            {tags.map((t) => (
+              <div key={t.tag} className={`inline-flex items-center gap-2 border px-2.5 py-1 text-xs ${t.oos_products > 0 ? "border-destructive/60 bg-destructive/10" : "border-ink/20 bg-cream"}`}
+                data-testid={`tag-pill-${t.tag}`}>
+                <span className="font-medium">{t.tag}</span>
+                <span className="text-muted2">· {t.product_count}</span>
+                {t.oos_products > 0 && (
+                  <>
+                    <span className="text-destructive text-[10px] uppercase tracking-widest">Rupture</span>
+                    {t.oos_until && <span className="text-[10px] text-muted2">jusqu&apos;au {t.oos_until}</span>}
+                    <button onClick={() => clearTag(t.tag)} data-testid={`tag-clear-${t.tag}`}
+                      className="text-emerald-700 hover:text-emerald-900 text-[10px] uppercase tracking-widest">réactiver</button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+            <div>
+              <Label className="text-[10px] tracking-widest uppercase text-muted2">Étiquette</Label>
+              <select value={selectedTag} onChange={(e) => setSelectedTag(e.target.value)}
+                data-testid="tag-oos-select"
+                className="w-full border border-ink/20 bg-transparent px-2 py-2 mt-1 text-sm">
+                <option value="">— Choisir —</option>
+                {tags.map((t) => <option key={t.tag} value={t.tag}>{t.tag} ({t.product_count})</option>)}
+              </select>
+            </div>
+            <div>
+              <Label className="text-[10px] tracking-widest uppercase text-muted2">En rupture jusqu&apos;au</Label>
+              <Input type="date" value={until} onChange={(e) => setUntil(e.target.value)}
+                data-testid="tag-oos-until"
+                className="bg-transparent border-ink/20 rounded-none mt-1 text-sm" />
+            </div>
+            <Button disabled={busy || !selectedTag} onClick={apply} data-testid="tag-oos-apply"
+              className="bg-destructive hover:bg-destructive/90 text-cream rounded-none uppercase text-xs tracking-widest h-10">
+              {busy ? "…" : "Enlever du stock"}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 
 // =========== BULK UPLOAD DIALOG (auto-parse name + price from filename) ===========
 function BulkUploadDialog({ defaultMenu, cats, onClose, onDone }) {
@@ -689,14 +806,25 @@ function BulkUploadDialog({ defaultMenu, cats, onClose, onDone }) {
 
 
 function ProductEditor({ product, cats, groups, onClose, onSaved }) {
-  const [p, setP] = useState({ id: product.id, name: product.name || "", description: product.description || "", price: product.price || 0, image_url: product.image_url || "", category_id: product.category_id, menu_type: product.menu_type || "restaurant", addon_group_ids: product.addon_group_ids || [], out_of_stock_until: product.out_of_stock_until, is_active: product.is_active !== false });
+  const [p, setP] = useState({ id: product.id, name: product.name || "", description: product.description || "", price: product.price || 0, image_url: product.image_url || "", category_id: product.category_id, menu_type: product.menu_type || "restaurant", addon_group_ids: product.addon_group_ids || [], tags: product.tags || [], out_of_stock_until: product.out_of_stock_until, is_active: product.is_active !== false });
+  const [tagInput, setTagInput] = useState("");
   const [uploading, setUploading] = useState(false);
   const save = async () => {
-    if (product.id) await api.put(`/products/${product.id}`, p);
-    else await api.post("/products", p);
-    toast.success("Enregistré");
-    onSaved();
+    try {
+      if (product.id) await api.put(`/products/${product.id}`, p);
+      else await api.post("/products", p);
+      toast.success("Enregistré");
+      onSaved();
+    } catch (e) {
+      toast.error(`Erreur : ${e?.response?.data?.detail || e.message}`);
+    }
   };
+  const addTag = () => {
+    const t = tagInput.trim().toLowerCase();
+    if (t && !p.tags.includes(t)) setP({ ...p, tags: [...p.tags, t] });
+    setTagInput("");
+  };
+  const removeTag = (t) => setP({ ...p, tags: p.tags.filter((x) => x !== t) });
   const upload = async (e) => {
     const f = e.target.files?.[0]; if (!f) return;
     setUploading(true);
@@ -725,6 +853,25 @@ function ProductEditor({ product, cats, groups, onClose, onSaved }) {
           <div><Label>Nom</Label><Input value={p.name} onChange={(e) => setP({...p, name: e.target.value})} className="rounded-none bg-transparent border-ink/20" /></div>
           <div><Label>Description</Label><Textarea value={p.description} onChange={(e) => setP({...p, description: e.target.value})} className="rounded-none bg-transparent border-ink/20 resize-none" rows={3} /></div>
           <div><Label>Prix (CHF)</Label><Input type="number" step="0.10" value={p.price} onChange={(e) => setP({...p, price: parseFloat(e.target.value)||0})} className="rounded-none bg-transparent border-ink/20" /></div>
+          <div>
+            <Label>Étiquettes <span className="text-xs text-muted2 font-normal">(ex : salami, jambon — utilisées pour la rupture de stock)</span></Label>
+            <div className="flex flex-wrap gap-1.5 mt-1.5 mb-2 min-h-[26px]" data-testid="tags-list">
+              {p.tags.map((t) => (
+                <span key={t} className="inline-flex items-center gap-1 bg-brand/15 text-brand px-2 py-0.5 text-xs" data-testid={`tag-chip-${t}`}>
+                  {t}
+                  <button onClick={() => removeTag(t)} className="hover:text-destructive" data-testid={`tag-remove-${t}`}>×</button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Input value={tagInput} onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
+                placeholder="Nouvelle étiquette" data-testid="tag-input"
+                className="rounded-none bg-transparent border-ink/20 text-sm" />
+              <Button type="button" onClick={addTag} data-testid="tag-add-btn"
+                className="rounded-none bg-ink text-cream hover:bg-brand uppercase text-xs tracking-widest">Ajouter</Button>
+            </div>
+          </div>
           <div><Label>Image URL</Label>
             <Input value={p.image_url} onChange={(e) => setP({...p, image_url: e.target.value})} placeholder="https://... ou /api/uploads/..." className="rounded-none bg-transparent border-ink/20" />
             <input type="file" accept="image/*" onChange={upload} className="mt-2 text-sm" />
