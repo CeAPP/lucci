@@ -1,8 +1,6 @@
 import PageTransition from "@/components/PageTransition";
 import { motion } from "framer-motion";
 
-const STORY_IMG = "https://images.unsplash.com/photo-1607727536244-b3ab855fb209?crop=entropy&cs=srgb&fm=jpg&w=1600&q=80";
-
 export default function Story() {
   return (
     <PageTransition>
@@ -13,18 +11,15 @@ export default function Story() {
           className="font-display text-5xl md:text-7xl leading-tight mb-12">
           Redécouvrir les saveurs oubliées.
         </motion.h1>
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 0.3 }}>
-          <img src={STORY_IMG} alt="" className="w-full aspect-[16/9] object-cover mb-12" />
-        </motion.div>
         <div className="space-y-6 text-lg leading-relaxed text-ink/90">
           <p>
-            Faire redécouvrir des produits du terroir venant de toutes les régions d'Italie.
-            Retrouver, dans un marché dominé par l'industriel, les souvenirs d'enfance de saveurs oubliées.
+            Faire redécouvrir des produits du terroir venant de toutes les régions d&apos;Italie.
+            Retrouver, dans un marché dominé par l&apos;industriel, les souvenirs d&apos;enfance de saveurs oubliées.
             Tels sont notre but et notre philosophie.
           </p>
           <p>
-            Nous recherchons constamment les petits producteurs qui travaillent dans l'esprit du mouvement
-            <em className="font-italic-display"> Slow Food® </em>, souvent d'une nouvelle génération qui retrouve
+            Nous recherchons constamment les petits producteurs qui travaillent dans l&apos;esprit du mouvement
+            <em className="font-italic-display"> Slow Food® </em>, souvent d&apos;une nouvelle génération qui retrouve
             les techniques de production de leurs parents. Une partie de nos fromages est encore affinée chez nous.
             Toutes nos pâtes sont fraîches, et une grande partie est faite par nos soins avec des produits de saison
             et de toute première fraîcheur.

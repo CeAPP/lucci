@@ -10,8 +10,9 @@ from datetime import datetime, timezone, timedelta, date
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, UploadFile, File, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, UploadFile, File
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import Response, StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -31,12 +32,23 @@ logger = logging.getLogger("angeluccis")
 UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "/app/backend/uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+# Persistent object storage helper (survives redeploys)
+import storage as objstore  # noqa: E402
+
 client = AsyncIOMotorClient(os.environ["MONGO_URL"])
 db = client[os.environ["DB_NAME"]]
 
 app = FastAPI(title="Angelucci's API")
-app.mount("/api/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 api = APIRouter(prefix="/api")
+
+
+@app.on_event("startup")
+async def _startup_storage():
+    try:
+        objstore.init_storage()
+        logger.info("Object storage initialized")
+    except Exception as e:
+        logger.warning(f"Object storage init failed (will retry on first upload): {e}")
 
 
 def now_iso() -> str:
@@ -416,10 +428,35 @@ async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_cur
     if ext not in [".jpg", ".jpeg", ".png", ".webp", ".gif"]:
         raise HTTPException(400, "Format non supporté")
     name = f"{uuid.uuid4().hex}{ext}"
-    dest = UPLOAD_DIR / name
-    with dest.open("wb") as f:
-        shutil.copyfileobj(file.file, f)
+    data = await file.read()
+    try:
+        objstore.upload_image(name, data, ext)
+    except Exception as e:
+        logger.error(f"Object storage upload failed: {e}")
+        raise HTTPException(500, "Échec du stockage — réessayer")
     return {"url": f"/api/uploads/{name}"}
+
+
+@api.get("/uploads/{filename:path}")
+async def serve_upload(filename: str):
+    """Public image serving — tries persistent object storage first, then local fallback."""
+    # Prevent path traversal
+    if "/" in filename or ".." in filename:
+        raise HTTPException(400, "Bad filename")
+    # 1) Try object storage (new uploads)
+    try:
+        data, content_type = objstore.fetch_image(filename)
+        return Response(content=data, media_type=content_type, headers={"Cache-Control": "public, max-age=86400"})
+    except Exception:
+        pass
+    # 2) Fallback to local disk (older uploads still on the ephemeral disk of THIS deploy)
+    local = UPLOAD_DIR / filename
+    if local.exists() and local.is_file():
+        ext = local.suffix.lower()
+        ct = objstore.MIME_BY_EXT.get(ext, "application/octet-stream")
+        return Response(content=local.read_bytes(), media_type=ct, headers={"Cache-Control": "public, max-age=86400"})
+    raise HTTPException(404, "Image not found")
+
 
 
 def _parse_product_filename(filename: str) -> dict:
@@ -462,11 +499,14 @@ async def upload_product_from_image(
     if menu_type not in ("restaurant", "epicerie"):
         raise HTTPException(400, "menu_type invalide")
 
-    # Save file
+    # Save file to persistent object storage (survives redeploys)
     img_name = f"{uuid.uuid4().hex}{ext}"
-    dest = UPLOAD_DIR / img_name
-    with dest.open("wb") as f:
-        shutil.copyfileobj(file.file, f)
+    data = await file.read()
+    try:
+        objstore.upload_image(img_name, data, ext)
+    except Exception as e:
+        logger.error(f"Object storage upload failed for {file.filename}: {e}")
+        raise HTTPException(500, "Échec du stockage — réessayer")
 
     # Parse filename
     parsed = _parse_product_filename(file.filename)

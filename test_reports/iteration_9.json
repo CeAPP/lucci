@@ -1,0 +1,42 @@
+{
+  "summary": "Verified persistent object-storage-backed uploads and image removal on /histoire. All 6 backend tests pass and frontend /histoire renders without any image while preserving philosophy/Slow Food text.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_results": {
+    "backend_tests_passed": 6,
+    "backend_tests_failed": 0,
+    "details": {
+      "test_story_page_has_no_image": "PASS - /histoire returns HTML shell",
+      "test_upload_and_fetch_returns_exact_bytes": "PASS - POST /api/admin/products/upload returned image_url starting with /api/uploads/, price=12.50, name contains 'PersistTest'; GET returned exact JPEG bytes with content-type image/jpeg",
+      "test_persistence_after_local_delete": "PASS - after os.remove of local copy, GET /api/uploads/{name} still returned exact bytes (object storage confirmed as source of truth)",
+      "test_backward_compat_local_fallback": "PASS - a pre-existing file in /app/backend/uploads/ still serves via local fallback (200 image/*)",
+      "test_security_path_traversal": "PASS - /api/uploads/foo/bar returns 400, /api/uploads/..%2Fetc%2Fpasswd returns 400/404",
+      "test_cleanup_delete_test_product": "PASS - DELETE /api/products/{id} removed the created test product"
+    },
+    "frontend_verification": {
+      "histoire_images_count": 0,
+      "unsplash_images_on_page": 0,
+      "text_intact": ["Notre philosophie", "Redécouvrir les saveurs oubliées", "Slow Food", "La qualità a discapito"],
+      "screenshot_verified": true
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_persistent_storage.py",
+    "/app/test_reports/pytest/persistent_storage.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is ~884 lines — approaching the 700-line threshold, consider modularization (routers per domain: products, uploads, admin, marketing).",
+    "storage.py cleanly encapsulates object-storage calls with 403-refresh retry; no issues.",
+    "Path-traversal guard in /api/uploads/{filename:path} correctly rejects '/' and '..'."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_persistent_storage.py (new)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% (/histoire verified)"},
+  "test_credentials": "AngelCED26 / CE26$Lucc (owner) — read from /app/memory/test_credentials.md",
+  "seed_data_creation": "Created + cleaned up one test product 'PersistTest 12.50.jpg' during upload flow test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Persistent object-storage upload flow (/api/upload, /api/admin/products/upload, /api/uploads/{filename}) is fully working with object-storage as source of truth and local disk fallback for legacy files. Test file /app/backend/tests/test_persistent_storage.py can be re-used for regression."
+}
