@@ -80,6 +80,11 @@ Full-stack website for Farmacia Angelucci (branded ANGELUCCI'S) — Italian rest
 - **Client tracking page `/suivi/:id`**: polling 15 s → 8 s. Always-visible "Une question ? Appelez-nous" banner (`data-testid=contact-banner`). Urgent red pulsing callout (`data-testid=urgent-callout`) appears ONLY when `status=new` AND `created_at > 2 min` ago. New `rejected` status handled with dedicated red block.
 - **Email tracking link**: order confirmation email now embeds a "SUIVRE MA COMMANDE →" CTA linking to `{PUBLIC_SITE_URL}/suivi/{id}`. `PUBLIC_SITE_URL` set to production host in `backend/.env`.
 
+## Implemented (2026-02 — Landing cleanup + bulk category assignment)
+- **Removed "Plats phares"** section from Landing page (`/app/frontend/src/pages/Landing.jsx`). Homepage now flows Hero → Story teaser → Categories dual (Ristorante/Épicerie) → Location → Contact.
+- **Bulk category change** in Admin > Menu > Produits : new dropdown "Changer catégorie…" in the bulk actions bar (`data-testid="bulk-cat-select"` + `bulk-cat-apply`). Applies the target category to every selected product in one click.
+- **Select-all-filtered** button (`data-testid="select-all-filtered"`) next to the search field. Selects (or deselects) every product currently visible after the menu-type + category + search filters. Enables "select all in a category" flow: pick a category in the filter → click "Sélectionner N" → change category / add tag / delete.
+
 ## Backlog / Next
 - P1: Stripe online payment (currently paiement sur place)
 - P1: Real Resend API key hookup

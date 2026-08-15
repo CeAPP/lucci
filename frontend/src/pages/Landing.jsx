@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, MapPin, Phone, UtensilsCrossed, Wheat, Star } from "lucide-react";
+import { ArrowRight, MapPin, Phone, UtensilsCrossed, Wheat } from "lucide-react";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import PageTransition from "@/components/PageTransition";
@@ -14,10 +14,8 @@ const fadeUp = { initial: { opacity: 0, y: 30 }, whileInView: { opacity: 1, y: 0
 
 export default function Landing() {
   const [settings, setSettings] = useState({});
-  const [featured, setFeatured] = useState([]);
   useEffect(() => {
     api.get("/settings").then((r) => setSettings(r.data)).catch(() => {});
-    api.get("/products", { params: { menu_type: "restaurant" } }).then((r) => setFeatured(r.data.slice(0, 3))).catch(() => {});
   }, []);
 
   return (
@@ -138,51 +136,6 @@ export default function Landing() {
             <ArrowRight size={16} strokeWidth={1.5} />
           </Link>
         </motion.div>
-      </section>
-
-      {/* PLATS PHARES */}
-      <section className="bg-cream-surface relative overflow-hidden py-16 md:py-24 lg:py-32">
-        <div className="hidden md:block absolute top-10 right-10 font-display text-[8rem] lg:text-[12rem] text-terracotta/10 leading-none select-none">Menu</div>
-        <div className="max-w-[1400px] mx-auto px-6 md:px-10 relative">
-          <motion.div {...fadeUp} className="flex flex-col sm:flex-row items-start sm:items-end justify-between mb-10 lg:mb-14 gap-5">
-            <div>
-              <div className="flex items-center gap-3 mb-3 lg:mb-4">
-                <span className="w-8 h-px bg-terracotta" />
-                <p className="text-[10px] lg:text-[11px] tracking-[.35em] lg:tracking-[.4em] uppercase text-terracotta">Nos incontournables</p>
-              </div>
-              <h2 className="font-display text-4xl sm:text-5xl md:text-6xl leading-tight">
-                Les plats <em className="font-italic-display text-brand">phares</em>
-              </h2>
-            </div>
-            <Link to="/commander" className="link-underline text-sm tracking-[.2em] uppercase text-ink hover:text-terracotta">Voir toute la carte →</Link>
-          </motion.div>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 lg:gap-8">
-            {(featured.length > 0 ? featured : [
-              { id: "1", name: "Tagliatelles al ragù", description: "Pâtes maison, ragù mijoté 6h", price: 26.5, image_url: IMG_TAGLIATELLE },
-              { id: "2", name: "Salumi Artigianali", description: "Sélection charcuterie italienne", price: 18.9, image_url: IMG_SALUMI },
-              { id: "3", name: "Pâtes fraîches maison", description: "Farine locale, œufs frais", price: 22, image_url: IMG_PASTA_SHORT },
-            ]).map((p, i) => (
-              <motion.div key={p.id} {...fadeUp} transition={{ delay: 0.1 * i, duration: 0.9 }}
-                className="group bg-cream border border-ink/5 hover:border-terracotta/40 transition-all overflow-hidden">
-                <div className="aspect-[4/3] overflow-hidden relative">
-                  <img src={p.image_url || IMG_TAGLIATELLE} alt={p.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
-                  <div className="absolute inset-0 bg-terracotta/10 mix-blend-multiply pointer-events-none" />
-                  <div className="absolute top-3 left-3 bg-cream/95 backdrop-blur-sm text-terracotta text-[10px] tracking-widest uppercase px-2 py-1 flex items-center gap-1">
-                    <Star size={10} fill="currentColor" strokeWidth={0} /> {i === 0 ? "Signature" : i === 1 ? "Producteur" : "Fait maison"}
-                  </div>
-                </div>
-                <div className="p-5 lg:p-6 flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-display text-xl lg:text-2xl mb-1">{p.name}</h3>
-                    <p className="text-sm text-muted2 line-clamp-2">{p.description}</p>
-                  </div>
-                  <p className="text-terracotta font-medium whitespace-nowrap">CHF {Number(p.price).toFixed(2)}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
       </section>
 
       {/* CATEGORIES DUAL */}

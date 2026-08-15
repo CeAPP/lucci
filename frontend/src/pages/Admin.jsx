@@ -478,6 +478,7 @@ function MenuTab() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkTag, setBulkTag] = useState("");
+  const [bulkCat, setBulkCat] = useState("");
 
   const load = async () => {
     const [p, c, g] = await Promise.all([
@@ -523,6 +524,23 @@ function MenuTab() {
               {catsFor(filterMenu).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <Input placeholder="Rechercher" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs bg-transparent border-ink/20 rounded-none focus-visible:ring-brand" />
+            <Button onClick={() => {
+                const allIds = new Set(filtered.map((x) => x.id));
+                setSelectedIds((prev) => {
+                  // If all filtered are already selected → clear only those; else add all
+                  const allAlreadyIn = filtered.length > 0 && filtered.every((x) => prev.has(x.id));
+                  const next = new Set(prev);
+                  if (allAlreadyIn) filtered.forEach((x) => next.delete(x.id));
+                  else allIds.forEach((id) => next.add(id));
+                  return next;
+                });
+              }}
+              data-testid="select-all-filtered" variant="outline"
+              className="rounded-none border-ink/40 uppercase text-xs tracking-widest">
+              {filtered.length > 0 && filtered.every((x) => selectedIds.has(x.id))
+                ? `Désélectionner ${filtered.length}`
+                : `Sélectionner ${filtered.length}`}
+            </Button>
             <Button onClick={() => setShowUpload(true)} data-testid="bulk-upload-btn"
               variant="outline" className="ml-auto rounded-none border-brand text-brand hover:bg-brand hover:text-cream uppercase text-xs tracking-widest">
               <Upload size={14} className="mr-1"/> Uploader images
@@ -543,6 +561,25 @@ function MenuTab() {
             <div className="sticky top-20 z-20 border-2 border-brand bg-brand/10 p-3 mb-4 flex flex-wrap items-center gap-2" data-testid="bulk-actions-bar">
               <span className="text-sm font-medium">{selectedIds.size} sélectionné(s)</span>
               <div className="flex-1" />
+              <select value={bulkCat} onChange={(e) => setBulkCat(e.target.value)} data-testid="bulk-cat-select"
+                className="border border-ink/20 bg-cream px-2 py-1.5 text-sm">
+                <option value="">Changer catégorie…</option>
+                {catsFor(filterMenu).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <Button size="sm" disabled={!bulkCat} onClick={async () => {
+                try {
+                  await Promise.all([...selectedIds].map((id) => {
+                    const p = products.find((x) => x.id === id);
+                    if (!p) return null;
+                    return api.put(`/products/${id}`, { ...p, category_id: bulkCat });
+                  }));
+                  const cName = cats.find((c) => c.id === bulkCat)?.name || "";
+                  toast.success(`Catégorie « ${cName} » appliquée à ${selectedIds.size} produit(s)`);
+                  setBulkCat(""); setSelectedIds(new Set()); load();
+                } catch (e) { toast.error("Erreur"); }
+              }} data-testid="bulk-cat-apply" className="rounded-none bg-brand text-cream uppercase text-xs tracking-widest h-9">
+                Appliquer
+              </Button>
               <select value={bulkTag} onChange={(e) => setBulkTag(e.target.value)} data-testid="bulk-tag-select"
                 className="border border-ink/20 bg-cream px-2 py-1.5 text-sm">
                 <option value="">Ajouter étiquette…</option>
