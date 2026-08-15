@@ -706,6 +706,28 @@ async def create_order(order_in: OrderCreate):
     except Exception as e:
         logger.error(f"Email failure: {e}")
 
+    # Pushover EMERGENCY alert (priority 2 — retry every 30s during 6 min)
+    try:
+        pu_token = os.environ.get("PUSHOVER_API_TOKEN")
+        pu_user = os.environ.get("PUSHOVER_USER_KEY")
+        if pu_token and pu_user:
+            menu_label = "RESTAURANT" if order.get("menu_type") == "restaurant" else "ÉPICERIE"
+            body = (
+                f"{menu_label} · Commande #{order['order_number']}\n"
+                f"{order['customer']['first_name']} {order['customer']['last_name']} · {order['customer']['phone']}\n"
+                f"Créneau : {order['pickup_time_label']}\n"
+                f"Total : CHF {order['total']:.2f}"
+            )
+            import requests as _req
+            _req.post("https://api.pushover.net/1/messages.json", data={
+                "token": pu_token, "user": pu_user,
+                "title": f"Nouvelle commande — Angelucci's",
+                "message": body,
+                "priority": 2, "retry": 30, "expire": 360, "sound": "siren",
+            }, timeout=10)
+    except Exception as e:
+        logger.error(f"Pushover failure: {e}")
+
     return {"id": order["id"], "order_number": order["order_number"], "total": order["total"]}
 
 

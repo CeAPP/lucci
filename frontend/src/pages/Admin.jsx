@@ -116,7 +116,30 @@ function OrdersTab({ ping }) {
   const [orders, setOrders] = useState([]);
   const [filter, setFilter] = useState("all");
   const [rescheduling, setRescheduling] = useState(null);
+  const [alarmActive, setAlarmActive] = useState(false);
   const lastIdsRef = useRef(new Set());
+  const alarmTimerRef = useRef(null);
+  const alarmDeadlineRef = useRef(0);
+
+  const stopAlarm = () => {
+    if (alarmTimerRef.current) { clearInterval(alarmTimerRef.current); alarmTimerRef.current = null; }
+    alarmDeadlineRef.current = 0;
+    setAlarmActive(false);
+  };
+
+  // Ring every 30s during 6 minutes. Auto-stops when no more "new" orders or on timeout.
+  const startAlarm = () => {
+    if (alarmTimerRef.current) return; // already ringing
+    alarmDeadlineRef.current = Date.now() + 6 * 60 * 1000; // 6 min
+    setAlarmActive(true);
+    ping.play();
+    alarmTimerRef.current = setInterval(() => {
+      if (Date.now() > alarmDeadlineRef.current) { stopAlarm(); return; }
+      // Only ring if there's still at least one "new" order
+      if (lastIdsRef.current.size === 0) { stopAlarm(); return; }
+      ping.play();
+    }, 30000);
+  };
 
   const load = async () => {
     const { data } = await api.get("/admin/orders");
@@ -126,11 +149,21 @@ function OrdersTab({ ping }) {
     if (lastIdsRef.current.size > 0) {
       let added = 0;
       cur.forEach((id) => { if (!lastIdsRef.current.has(id)) added++; });
-      if (added > 0) { ping.play(); toast.success(`${added} nouvelle${added>1?"s":""} commande${added>1?"s":""}`); }
+      if (added > 0) {
+        toast.success(`${added} nouvelle${added>1?"s":""} commande${added>1?"s":""}`);
+        startAlarm();
+      }
     }
+    // If admin acknowledged all new orders, stop alarm
+    if (cur.size === 0 && alarmTimerRef.current) stopAlarm();
     lastIdsRef.current = cur;
   };
-  useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 8000);
+    return () => { clearInterval(t); stopAlarm(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = orders.filter((o) => filter === "all" || o.status === filter);
 
@@ -174,6 +207,21 @@ function OrdersTab({ ping }) {
 
   return (
     <div>
+      {alarmActive && (
+        <div className="mb-4 p-4 bg-destructive/10 border-2 border-destructive flex items-center justify-between animate-pulse" data-testid="alarm-banner">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🔔</span>
+            <div>
+              <p className="font-display text-lg text-destructive">Nouvelle commande — Alarme active</p>
+              <p className="text-xs text-muted2">L'alarme sonne toutes les 30 s pendant 6 min. Confirmez ou refusez pour l'arrêter.</p>
+            </div>
+          </div>
+          <Button onClick={stopAlarm} data-testid="stop-alarm"
+            className="rounded-none bg-destructive text-cream uppercase text-xs tracking-widest h-10 hover:bg-destructive/90">
+            🔕 Arrêter l'alarme
+          </Button>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2 mb-6">
         {["all", "new", "preparing", "ready", "done", "rejected"].map((s) => (
           <button key={s} onClick={() => setFilter(s)} data-testid={`filter-${s}`}
@@ -183,7 +231,7 @@ function OrdersTab({ ping }) {
         ))}
       </div>
       {filtered.length === 0 && <p className="text-muted2">Aucune commande.</p>}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((o) => {
           const isEpicerie = o.menu_type === "epicerie";
           const cfg = STATUS_CFG[o.status] || STATUS_CFG.new;
@@ -426,6 +474,8 @@ function MenuTab() {
   const [showUpload, setShowUpload] = useState(false);
   const [showCsv, setShowCsv] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkTag, setBulkTag] = useState("");
 
   const load = async () => {
     const [p, c, g] = await Promise.all([
@@ -437,6 +487,7 @@ function MenuTab() {
   useEffect(() => { load(); }, []);
 
   const filtered = products.filter((p) => p.menu_type === filterMenu && (!filterCat || p.category_id === filterCat) && (!search || p.name.toLowerCase().includes(search.toLowerCase())));
+  const tagOptions = Array.from(new Set(products.flatMap((p) => p.tags || []))).sort();
 
   const del = async (p) => { if (!confirm("Supprimer ?")) return; await api.delete(`/products/${p.id}`); load(); };
   const setOOS = async (p, days) => {
@@ -481,33 +532,74 @@ function MenuTab() {
             <Button onClick={() => setEditing({ menu_type: filterMenu, category_id: catsFor(filterMenu)[0]?.id, price: 0, addon_group_ids: [], is_active: true })}
               data-testid="new-product-btn"
               className="bg-brand hover:bg-brand-hover text-cream rounded-none uppercase text-xs tracking-widest"><Plus size={14} className="mr-1"/> Nouveau produit</Button>
-            <Button onClick={async () => {
-              const label = filterMenu === "restaurant" ? "restaurant" : "épicerie";
-              const filteredCount = products.filter((p) => p.menu_type === filterMenu).length;
-              if (!confirm(`Supprimer TOUS les ${filteredCount} produits du menu ${label} ? Action irréversible.`)) return;
-              try {
-                const { data } = await api.delete(`/admin/products/bulk?menu_type=${filterMenu}`);
-                toast.success(`${data.deleted_count} produit(s) supprimé(s)`);
-                load();
-              } catch (e) {
-                toast.error(`Erreur : ${e?.response?.data?.detail || e.message}`);
-              }
-            }} data-testid="bulk-delete-btn"
-              variant="outline" className="rounded-none border-destructive text-destructive hover:bg-destructive hover:text-cream uppercase text-xs tracking-widest">
-              <Trash2 size={14} className="mr-1"/> Tout supprimer
-            </Button>
           </div>
 
           <TagOOSPanel onChange={load} refreshKey={refreshKey} />
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((p) => (
-              <div key={p.id} className="border border-ink/10 bg-cream p-4 flex gap-3">
+          {/* MULTI-SELECT BULK ACTIONS BAR — shows when at least 1 product selected */}
+          {selectedIds.size > 0 && (
+            <div className="sticky top-20 z-20 border-2 border-brand bg-brand/10 p-3 mb-4 flex flex-wrap items-center gap-2" data-testid="bulk-actions-bar">
+              <span className="text-sm font-medium">{selectedIds.size} sélectionné(s)</span>
+              <div className="flex-1" />
+              <select value={bulkTag} onChange={(e) => setBulkTag(e.target.value)} data-testid="bulk-tag-select"
+                className="border border-ink/20 bg-cream px-2 py-1.5 text-sm">
+                <option value="">Ajouter étiquette…</option>
+                {tagOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <Button size="sm" disabled={!bulkTag} onClick={async () => {
+                try {
+                  await Promise.all([...selectedIds].map((id) => {
+                    const p = products.find((x) => x.id === id);
+                    if (!p) return null;
+                    const newTags = Array.from(new Set([...(p.tags || []), bulkTag]));
+                    return api.put(`/products/${id}`, { ...p, tags: newTags });
+                  }));
+                  toast.success(`Étiquette « ${bulkTag} » ajoutée à ${selectedIds.size} produit(s)`);
+                  setBulkTag(""); setSelectedIds(new Set()); load();
+                } catch (e) { toast.error("Erreur"); }
+              }} data-testid="bulk-tag-apply" className="rounded-none bg-ink text-cream uppercase text-xs tracking-widest h-9">
+                Appliquer
+              </Button>
+              <Button size="sm" onClick={async () => {
+                if (!confirm(`Supprimer ${selectedIds.size} produit(s) ?`)) return;
+                try {
+                  await Promise.all([...selectedIds].map((id) => api.delete(`/products/${id}`)));
+                  toast.success(`${selectedIds.size} produit(s) supprimé(s)`);
+                  setSelectedIds(new Set()); load();
+                } catch (e) { toast.error("Erreur"); }
+              }} data-testid="bulk-delete-selected" className="rounded-none bg-destructive text-cream uppercase text-xs tracking-widest h-9">
+                <Trash2 size={12} className="mr-1"/> Supprimer
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setSelectedIds(new Set())} data-testid="bulk-clear"
+                className="rounded-none border-ink/20 uppercase text-xs tracking-widest h-9">Annuler</Button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map((p) => {
+              const isSel = selectedIds.has(p.id);
+              return (
+              <div key={p.id} className={`border bg-cream p-4 flex gap-3 ${isSel ? "border-brand ring-2 ring-brand/40" : "border-ink/10"}`} data-testid={`product-card-${p.id}`}>
+                <input type="checkbox" checked={isSel}
+                  onChange={(e) => {
+                    setSelectedIds((prev) => {
+                      const n = new Set(prev);
+                      if (e.target.checked) n.add(p.id); else n.delete(p.id);
+                      return n;
+                    });
+                  }}
+                  data-testid={`product-select-${p.id}`}
+                  className="mt-1 h-4 w-4 accent-brand cursor-pointer" />
                 {p.image_url && <img src={mediaUrl(p.image_url)} alt="" className="w-24 h-24 object-cover" />}
                 <div className="flex-1">
                   <p className="font-display text-lg">{p.name}</p>
                   <p className="text-sm text-brand mb-1">{CHF(p.price)}</p>
-                  {p.out_of_stock_until && <p className="text-xs text-red-700">Rupture jusqu'au {p.out_of_stock_until}</p>}
+                  {p.tags && p.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-1">
+                      {p.tags.map((t) => <span key={t} className="text-[10px] bg-brand/15 text-brand px-1.5 py-0.5">{t}</span>)}
+                    </div>
+                  )}
+                  {p.out_of_stock_until && <p className="text-xs text-red-700">Rupture jusqu&apos;au {p.out_of_stock_until}</p>}
                   <div className="flex gap-1 mt-2 flex-wrap">
                     <Button size="sm" onClick={() => setEditing(p)} className="rounded-none h-7 px-2 text-xs bg-ink text-cream"><Pencil size={12}/></Button>
                     <Button size="sm" variant="outline" onClick={() => del(p)} className="rounded-none h-7 px-2 border-ink/20"><Trash2 size={12}/></Button>
@@ -518,7 +610,8 @@ function MenuTab() {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
           {editing && <ProductEditor product={editing} cats={cats} groups={groups} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
           {showUpload && <BulkUploadDialog defaultMenu={filterMenu} cats={cats} onClose={() => setShowUpload(false)} onDone={() => { setShowUpload(false); load(); }} />}
@@ -1614,15 +1707,52 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState("orders");
   const ping = usePing();
   const [soundOn, setSoundOn] = useState(false);
+  const [wakeOn, setWakeOn] = useState(false);
+  const [showReady, setShowReady] = useState(false);
   const [role, setRole] = useState("");
   const [username, setUsername] = useState("");
+  const wakeRef = useRef(null);
 
   useEffect(() => {
     const t = localStorage.getItem("angel_token");
     if (!t) { nav("/Angel/login"); return; }
     setRole(localStorage.getItem("angel_role") || "");
     setUsername(localStorage.getItem("angel_user") || "");
+    // Show ready-modal on first landing (per session)
+    if (!sessionStorage.getItem("angel_ready_dismissed")) setShowReady(true);
   }, []);
+
+  const requestWakeLock = async () => {
+    try {
+      if ("wakeLock" in navigator) {
+        wakeRef.current = await navigator.wakeLock.request("screen");
+        wakeRef.current.addEventListener("release", () => setWakeOn(false));
+        setWakeOn(true);
+        return true;
+      }
+    } catch (e) { console.warn("WakeLock error", e); }
+    return false;
+  };
+  // Re-acquire wake lock on visibility change
+  useEffect(() => {
+    const onVis = async () => {
+      if (wakeOn && document.visibilityState === "visible" && !wakeRef.current) {
+        try { wakeRef.current = await navigator.wakeLock.request("screen"); } catch {}
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [wakeOn]);
+
+  const enableEverything = async () => {
+    const s = ping.enable();
+    if (s) setSoundOn(true);
+    const w = await requestWakeLock();
+    if (s || w) toast.success("Notifications & écran maintenu allumé");
+    sessionStorage.setItem("angel_ready_dismissed", "1");
+    setShowReady(false);
+  };
+  const skipReady = () => { sessionStorage.setItem("angel_ready_dismissed", "1"); setShowReady(false); };
 
   const logout = () => { localStorage.removeItem("angel_token"); localStorage.removeItem("angel_role"); localStorage.removeItem("angel_user"); nav("/Angel/login"); };
   const enableSound = () => { if (ping.enable()) { setSoundOn(true); toast.success("Notifications sonores activées"); } };
@@ -1631,26 +1761,56 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-cream-surface">
-      <header className="bg-ink text-cream sticky top-0 z-40">
-        <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center gap-6">
-          <img src={LOGO} alt="" className="h-10 w-10" />
-          <div className="flex-1">
-            <p className="text-xs tracking-widest uppercase text-cream/60">Espace admin</p>
-            <p className="font-display text-xl">Angelucci's</p>
+      {showReady && (
+        <div className="fixed inset-0 z-[80] bg-ink/70 backdrop-blur-sm flex items-center justify-center p-4" data-testid="ready-modal">
+          <div className="bg-cream max-w-md w-full p-6 border border-ink/10 shadow-2xl">
+            <p className="text-xs tracking-widest uppercase text-brand mb-2">Angelucci&apos;s · Admin</p>
+            <h2 className="font-display text-2xl mb-3">Prêt à recevoir les commandes ?</h2>
+            <p className="text-sm text-muted2 mb-5">
+              Pour ne rater aucune commande, on active le son (alarme toutes les 30 s pendant 6 min) et le mode anti-veille (écran maintenu allumé).
+            </p>
+            <ul className="text-sm space-y-2 mb-6">
+              <li className="flex items-center gap-2"><Volume2 size={16} className="text-brand"/> Alerte sonore continue</li>
+              <li className="flex items-center gap-2"><Bell size={16} className="text-brand"/> Notification push (Pushover)</li>
+              <li className="flex items-center gap-2"><span className="text-brand">☀︎</span> Anti-veille écran</li>
+            </ul>
+            <div className="flex flex-col-reverse sm:flex-row gap-2">
+              <Button onClick={skipReady} variant="outline" data-testid="ready-skip"
+                className="flex-1 rounded-none border-ink/20 uppercase text-xs tracking-widest h-11">
+                Plus tard
+              </Button>
+              <Button onClick={enableEverything} data-testid="ready-enable"
+                className="flex-1 rounded-none bg-brand hover:bg-brand-hover text-cream uppercase text-xs tracking-widest h-11">
+                Activer tout
+              </Button>
+            </div>
           </div>
-          <span className="text-xs text-cream/70">{username} · <span className="text-brand uppercase">{role}</span></span>
+        </div>
+      )}
+
+      <header className="bg-ink text-cream sticky top-0 z-40">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-3 sm:gap-6">
+          <img src={LOGO} alt="" className="h-8 w-8 sm:h-10 sm:w-10 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] sm:text-xs tracking-widest uppercase text-cream/60">Espace admin</p>
+            <p className="font-display text-base sm:text-xl truncate">Angelucci&apos;s</p>
+          </div>
+          <span className="hidden md:inline text-xs text-cream/70">{username} · <span className="text-brand uppercase">{role}</span></span>
           {!soundOn ? (
-            <Button onClick={enableSound} data-testid="enable-sound-btn" className="rounded-none bg-brand hover:bg-brand-hover text-cream uppercase text-xs tracking-widest"><Volume2 size={14} className="mr-1"/> Activer le son</Button>
+            <Button onClick={enableSound} data-testid="enable-sound-btn" className="rounded-none bg-brand hover:bg-brand-hover text-cream uppercase text-[10px] sm:text-xs tracking-widest h-9 px-2 sm:px-4">
+              <Volume2 size={14} className="sm:mr-1"/> <span className="hidden sm:inline">Activer le son</span>
+            </Button>
           ) : (
-            <span className="text-xs text-brand flex items-center gap-1"><Bell size={14}/> Son ON</span>
+            <span className="text-xs text-brand flex items-center gap-1"><Bell size={14}/> <span className="hidden sm:inline">Son ON</span></span>
           )}
-          <Button onClick={logout} variant="outline" data-testid="admin-logout" className="rounded-none border-cream/20 text-cream hover:bg-cream hover:text-ink"><LogOut size={14}/></Button>
+          {wakeOn && <span className="hidden sm:flex text-xs text-brand items-center gap-1" data-testid="wake-on">☀︎ Écran ON</span>}
+          <Button onClick={logout} variant="outline" data-testid="admin-logout" className="rounded-none border-cream/20 text-cream hover:bg-cream hover:text-ink h-9 px-2 sm:px-3"><LogOut size={14}/></Button>
         </div>
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-6 py-8">
+      <main className="max-w-[1600px] mx-auto px-3 sm:px-6 py-4 sm:py-8">
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="bg-transparent rounded-none border-b border-ink/10 w-full justify-start overflow-x-auto flex-wrap h-auto p-0">
+          <TabsList className="bg-transparent rounded-none border-b border-ink/10 w-full justify-start overflow-x-auto flex-nowrap sm:flex-wrap h-auto p-0 -mx-3 sm:mx-0 px-3 sm:px-0">
             {[
               { v: "orders", label: "Commandes" },
               { v: "reservations", label: "Réservations" },
@@ -1662,7 +1822,7 @@ export default function AdminDashboard() {
               { v: "settings", label: "Paramètres" },
             ].map((t) => (
               <TabsTrigger key={t.v} value={t.v} data-testid={`tab-${t.v}`}
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-brand data-[state=active]:bg-transparent data-[state=active]:text-brand text-xs tracking-widest uppercase h-12 px-5">
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-brand data-[state=active]:bg-transparent data-[state=active]:text-brand text-[10px] sm:text-xs tracking-widest uppercase h-11 sm:h-12 px-3 sm:px-5 whitespace-nowrap shrink-0">
                 {t.label}
               </TabsTrigger>
             ))}

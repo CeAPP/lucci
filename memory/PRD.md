@@ -77,7 +77,14 @@ Full-stack website for Farmacia Angelucci (branded ANGELUCCI'S) — Italian rest
 ## Backlog / Next
 - P1: Seed 5 real restaurant + 5 real épicerie products with `featured` flag for landing "Plats phares" (skipped for now — user to provide real names/prices)
 - P1: Stripe online payment (currently paiement sur place)
-- P1: Pushover push notifications (waiting on user)
 - P1: Real Resend API key hookup
 - P2: Notify customer by email on reject/reschedule
 - P2: Multi-language (IT/EN)
+- P2: Receipt printer integration (waiting on user for printer specs)
+
+## Implemented (2026-02 — Admin alarm + Pushover emergency + Wake Lock + mobile admin)
+- **Backend Pushover EMERGENCY** on every new order (`POST /api/orders`): priority=2, retry=30, expire=360, sound=`siren` (loud) — retries every 30 s during 6 min until acknowledged in Pushover app.
+- **Frontend continuous alarm loop** in Admin Orders tab (`/app/frontend/src/pages/Admin.jsx`): on new order detection, `ping.play()` fires immediately and then every 30 s during 6 min. Auto-stops when admin confirms/rejects all "new" orders OR after 6 min timeout. Visible pulsing alarm banner (`data-testid="alarm-banner"`) with a "🔕 Arrêter l'alarme" button (`data-testid="stop-alarm"`).
+- **Ready modal on Admin landing** (`data-testid="ready-modal"`): asks admin to activate sound + Wake Lock (anti-veille) in a single click. Uses `navigator.wakeLock.request("screen")` to keep the screen on. Auto re-acquires wake lock on `visibilitychange`. Dismissable per session via `sessionStorage`.
+- **Mobile-responsive Admin dashboard**: header collapses (icon-only sound button on mobile, username hidden), tabs scroll horizontally, orders grid switches to 1-col on mobile, section padding scales (`px-3 sm:px-6`).
+- **Multi-select bulk actions** in Menu tab: checkboxes on each product row, bulk-tag-add (dropdown selector), bulk-delete confirmation.
