@@ -1,0 +1,53 @@
+{
+  "summary": "Retested CSV import in Admin › Menu after iteration_11 fixes (image_url `|| null` → `|| \"\"`, and error-detail stringifier). All 4 targeted scenarios PASS, verified via network response inspection (POST /api/products status===200) and DOM inspection of [data-testid='csv-errors']. Products were actually created in the DB (visible in Menu grid — screenshot captured) and cleaned up via authenticated DELETE. The critical 422 blocker from iteration_11 is fully resolved, and the '[object Object]' error rendering bug is also resolved.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "CSV import dialog", "issues": ["(Carryover, non-blocking) DialogContent still missing DialogDescription/aria-describedby — a11y console warning persists."]}
+    ]
+  },
+  "test_results": {
+    "T1_comma_happy_2_rows": {
+      "posts": [{"status": 200}, {"status": 200}],
+      "errors_panel_present": false,
+      "verdict": "PASS — 2× POST /api/products 200, no errors panel; CSV_A_Test + CSV_B_Test appeared in Menu grid."
+    },
+    "T2_semicolon_european_price": {
+      "posts": [{"status": 200}],
+      "errors_panel_present": false,
+      "verdict": "PASS — semicolon delimiter, comma-decimal price `9,50` correctly parsed and posted; CSV_Semi_Test created."
+    },
+    "T3_bom_accented_headers": {
+      "posts": [{"status": 200}],
+      "errors_panel_present": false,
+      "verdict": "PASS — UTF-8 BOM stripped, `Nom/Prix/Catégorie` headers matched via NFD/lowercase alias map; CSV_BOM_Test created."
+    },
+    "T4_invalid_rows_readable_error": {
+      "posts": [{"status": 200}],
+      "errors_panel_text": "• Ligne 3 (BadPrice) : prix manquant ou invalide",
+      "verdict": "PASS — OK_Item created (POST 200), BadPrice caught by client-side validation with HUMAN-READABLE message. No '[object Object]' present."
+    },
+    "T5_regression_csv_button_visibility": {
+      "verdict": "PASS — [data-testid='csv-import-btn'] visible in Menu tab; dialog opens on click; closes cleanly (auto-close on success or Escape)."
+    }
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional: add <DialogDescription> to CsvImportDialog to silence Radix a11y console warning (carryover from iter11, non-blocking)."
+  ],
+  "critical_code_review_comments": [
+    "Both fixes are in place at Admin.jsx submit(): line 743 sends `image_url: r.image_url || \"\"` (string, satisfies backend Pydantic `image_url: str = \"\"`), and lines 748-750 stringify axios error detail with Array.isArray/typeof guards → human-readable messages.",
+    "Toast DOM query returned empty in my scraper (selectors did not match the sonner shadow); this is a testing-tool limitation, not a product bug — success was proven via 200 status + presence of created products in list + successful DELETE cleanup.",
+    "Admin.jsx still 1683 lines — refactor recommendation from iter11 stands but is not blocking."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A (frontend-only per request)", "frontend": "5/5 scenarios PASS (T1, T2, T3, T4, T5 regression)" },
+  "test_credentials": "Admin: AngelCED26 / CE26$Lucc (login at /Angel/login, dashboard /Angel/dashboard).",
+  "seed_data_creation": "Created during test: CSV_A_Test, CSV_B_Test, CSV_Semi_Test, CSV_BOM_Test, OK_Item — ALL DELETED via authenticated DELETE /api/products/{id} at end of run (5/5 cleanup responses = 200). No residue.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "CSV import feature is now fully working end-to-end. If any regression suspected in future, use the exact same 4 CSV payloads and verify via network POST /api/products=200 (NOT via toast substring match, which is unreliable because 'Importer N produits' text appears in the submit button label and 'produit importé' in failure toasts). Cleanup pattern: `fetch('/api/products?menu_type=restaurant', {Authorization: 'Bearer '+token})` then DELETE by id for any name starting with 'CSV_' or equal to 'OK_Item'.",
+  "rca of the issue": "N/A — the 2 iteration_11 fixes are verified working. Root cause (image_url:null → 422 + non-stringified Pydantic detail array → '[object Object]') is fully resolved."
+}

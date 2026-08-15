@@ -646,9 +646,16 @@ function CsvImportDialog({ defaultMenu, cats, onClose, onDone }) {
 
   const catsFor = (mt) => cats.filter((c) => c.menu_type === mt);
 
-  // Simple CSV parser (handles quotes and escaped commas)
+  // Robust CSV parser — handles BOM, comma/semicolon, quoted fields, accented headers
   const parseCsv = (text) => {
+    // Strip UTF-8 BOM
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    // Auto-detect delimiter: pick the more frequent one on the first line
+    const firstLine = (text.match(/^[^\r\n]*/) || [""])[0];
+    const delim = (firstLine.split(";").length > firstLine.split(",").length) ? ";" : ",";
     const lines = text.split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length === 0) return [];
+
     const parseLine = (line) => {
       const out = [];
       let cur = "", inQ = false;
@@ -656,34 +663,44 @@ function CsvImportDialog({ defaultMenu, cats, onClose, onDone }) {
         const c = line[i];
         if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
         else if (c === '"') inQ = !inQ;
-        else if (c === "," && !inQ) { out.push(cur); cur = ""; }
+        else if (c === delim && !inQ) { out.push(cur); cur = ""; }
         else cur += c;
       }
       out.push(cur);
       return out.map((s) => s.trim());
     };
-    if (lines.length === 0) return [];
-    const header = parseLine(lines[0]).map((h) => h.toLowerCase());
-    const idx = {
-      name: header.findIndex((h) => ["name", "nom", "produit"].includes(h)),
-      price: header.findIndex((h) => ["price", "prix"].includes(h)),
-      category: header.findIndex((h) => ["category", "catégorie", "categorie"].includes(h)),
-      image: header.findIndex((h) => ["image", "image_url", "photo"].includes(h)),
-      description: header.findIndex((h) => ["description", "desc"].includes(h)),
+
+    // Normalize header keys: lowercase, strip accents, strip non-alphanumeric
+    const normKey = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+    const header = parseLine(lines[0]).map(normKey);
+    const findIdx = (aliases) => {
+      for (const a of aliases) {
+        const i = header.indexOf(a);
+        if (i !== -1) return i;
+      }
+      return -1;
     };
-    if (idx.name === -1 || idx.price === -1) {
-      throw new Error("Colonnes 'name' et 'price' obligatoires (ou 'nom'/'prix').");
-    }
+    const idx = {
+      name: findIdx(["name", "nom", "produit", "product", "titre", "title"]),
+      price: findIdx(["price", "prix", "cout", "cost"]),
+      category: findIdx(["category", "categorie", "cat", "rubrique"]),
+      image: findIdx(["image", "imageurl", "photo", "img", "picture"]),
+      description: findIdx(["description", "desc", "detail", "details"]),
+    };
+    if (idx.name === -1) throw new Error("Colonne 'name' (ou 'nom', 'produit', 'titre') introuvable.");
+    if (idx.price === -1) throw new Error("Colonne 'price' (ou 'prix') introuvable.");
+
     return lines.slice(1).map((line) => {
       const cols = parseLine(line);
+      const rawPrice = (cols[idx.price] || "0").replace(/\s/g, "").replace(/[^\d.,]/g, "").replace(",", ".");
       return {
-        name: cols[idx.name] || "",
-        price: parseFloat((cols[idx.price] || "0").replace(",", ".")) || 0,
-        category_name: idx.category >= 0 ? cols[idx.category] : "",
-        image_url: idx.image >= 0 ? cols[idx.image] : "",
-        description: idx.description >= 0 ? cols[idx.description] : "",
+        name: (cols[idx.name] || "").trim(),
+        price: parseFloat(rawPrice) || 0,
+        category_name: idx.category >= 0 ? (cols[idx.category] || "").trim() : "",
+        image_url: idx.image >= 0 ? (cols[idx.image] || "").trim() : "",
+        description: idx.description >= 0 ? (cols[idx.description] || "").trim() : "",
       };
-    });
+    }).filter((r) => r.name); // drop empty rows
   };
 
   const onFile = (e) => {
@@ -709,29 +726,36 @@ function CsvImportDialog({ defaultMenu, cats, onClose, onDone }) {
     setDone(0);
     const errs = [];
     const catList = catsFor(menuType);
-    const catByName = Object.fromEntries(catList.map((c) => [c.name.toLowerCase(), c.id]));
+    // Match category by normalized name (case + accent insensitive)
+    const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const catByName = Object.fromEntries(catList.map((c) => [norm(c.name), c.id]));
     const defaultCat = catList[0]?.id;
     let ok = 0;
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
-      if (!r.name || !r.price) { errs.push(`Ligne ${i + 2} : name/price manquant`); setDone((d) => d + 1); continue; }
-      const catId = (r.category_name && catByName[r.category_name.toLowerCase()]) || defaultCat;
-      if (!catId) { errs.push(`Ligne ${i + 2} : aucune catégorie disponible`); setDone((d) => d + 1); continue; }
+      if (!r.name) { errs.push(`Ligne ${i + 2} : nom manquant`); setDone((d) => d + 1); continue; }
+      if (!r.price || r.price <= 0) { errs.push(`Ligne ${i + 2} (${r.name}) : prix manquant ou invalide`); setDone((d) => d + 1); continue; }
+      const catId = (r.category_name && catByName[norm(r.category_name)]) || defaultCat;
+      if (!catId) { errs.push(`Ligne ${i + 2} (${r.name}) : aucune catégorie disponible dans ce menu`); setDone((d) => d + 1); continue; }
       try {
         await api.post("/products", {
           name: r.name, description: r.description || "", price: r.price,
-          image_url: r.image_url || null, category_id: catId, menu_type: menuType,
+          image_url: r.image_url || "", category_id: catId, menu_type: menuType,
           addon_group_ids: [], tags: [], variants: [], is_active: true,
         });
         ok++;
       } catch (e) {
-        errs.push(`Ligne ${i + 2} (${r.name}) : ${e?.response?.data?.detail || e.message}`);
+        const d = e?.response?.data?.detail;
+        const msg = Array.isArray(d) ? d.map((x) => x.msg || JSON.stringify(x)).join("; ")
+          : (typeof d === "string" ? d : (d ? JSON.stringify(d) : e.message));
+        errs.push(`Ligne ${i + 2} (${r.name}) : ${msg}`);
       }
       setDone((d) => d + 1);
     }
     setErrors(errs);
     setBusy(false);
-    if (ok > 0) toast.success(`${ok} produit(s) importé(s)`);
+    if (ok > 0) toast.success(`${ok} produit(s) importé(s)${errs.length ? ` · ${errs.length} erreur(s)` : ""}`);
+    else if (errs.length > 0) toast.error(`Aucun produit importé — ${errs.length} erreur(s), voir détails`);
     if (errs.length === 0) setTimeout(() => onDone(), 800);
   };
 
