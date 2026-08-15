@@ -23,6 +23,7 @@ export default function Checkout() {
 
   const [schedule, setSchedule] = useState(null);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({
     first_name: "", last_name: "", phone: "", email: "",
     marketing_opt_in: false, promo_code: "",
@@ -36,10 +37,11 @@ export default function Checkout() {
   }, [menuType]);
 
   useEffect(() => {
+    if (submitted) return; // order in-flight — do not bounce back to menu when cart empties
     if (items.length === 0) nav(`/${menuType === "epicerie" ? "epicerie" : "commander"}`);
     // no time set for this menu — open the picker
     if (!mode || mode.menu_type !== menuType) setShowTimePicker(true);
-  }, [items.length, mode, menuType, nav]);
+  }, [items.length, mode, menuType, nav, submitted]);
 
   const currentTimeLabel = mode?.menu_type === menuType ? mode.pickup_time_label : null;
 
@@ -72,6 +74,7 @@ export default function Checkout() {
         promo_code: form.promo_code || null,
       };
       const { data } = await api.post("/orders", payload);
+      setSubmitted(true); // suppress the "empty cart" redirect that would otherwise fire when clearCart runs
       clearCart(menuType);
       toast.success(`Commande #${data.order_number} confirmée`);
       // Immediate hard redirect to tracking page (replace history so back button doesn't go to checkout)
@@ -85,7 +88,7 @@ export default function Checkout() {
 
   const label = menuType === "epicerie" ? "L'Épicerie" : "Il Ristorante";
 
-  if (items.length === 0) return null;
+  if (items.length === 0 && !submitted) return null;
 
   return (
     <PageTransition>
