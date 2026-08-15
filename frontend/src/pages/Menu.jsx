@@ -237,17 +237,27 @@ function ProductModal({ product, addonGroups, onClose, onAdd }) {
   const [qty, setQty] = useState(1);
   const [note, setNote] = useState("");
   const [selected, setSelected] = useState({}); // groupId -> [optionIds]
+  const [selectedVariantId, setSelectedVariantId] = useState("");
 
-  useEffect(() => { setQty(1); setNote(""); setSelected({}); }, [product?.id]);
+  useEffect(() => {
+    setQty(1); setNote(""); setSelected({});
+    const first = product?.variants?.[0]?.id || "";
+    setSelectedVariantId(first);
+  }, [product?.id]);
 
   if (!product) return null;
   const groups = (product.addon_group_ids || []).map((gid) => addonGroups.find((g) => g.id === gid)).filter(Boolean);
+  const variants = product.variants || [];
+  const hasVariants = variants.length > 0;
+  const selectedVariant = variants.find((v) => v.id === selectedVariantId);
+  const unitPrice = hasVariants && selectedVariant ? selectedVariant.price : product.price;
 
   const addonsFlat = groups.flatMap((g) => (selected[g.id] || []).map((oid) => g.options.find((o) => o.id === oid)).filter(Boolean));
   const addonsTotal = addonsFlat.reduce((s, a) => s + (a?.price || 0), 0);
-  const lineTotal = (product.price + addonsTotal) * qty;
+  const lineTotal = (unitPrice + addonsTotal) * qty;
 
-  const canAdd = groups.every((g) => !g.required || (selected[g.id] && selected[g.id].length > 0));
+  const canAdd = groups.every((g) => !g.required || (selected[g.id] && selected[g.id].length > 0))
+    && (!hasVariants || !!selectedVariant);
 
   const toggle = (g, opt) => {
     setSelected((s) => {
@@ -271,8 +281,33 @@ function ProductModal({ product, addonGroups, onClose, onAdd }) {
           )}
           <div className="p-5 sm:p-6 md:p-8 overflow-y-auto flex flex-col">
             <h3 className="font-display text-2xl sm:text-3xl mb-1 pr-8">{product.name}</h3>
-            <p className="text-brand text-base sm:text-lg mb-3">{CHF(product.price)}</p>
+            {!hasVariants && <p className="text-brand text-base sm:text-lg mb-3">{CHF(product.price)}</p>}
             <p className="text-muted2 text-sm sm:text-base mb-5">{product.description}</p>
+
+            {hasVariants && (
+              <div className="mb-5" data-testid="variants-select">
+                <div className="flex items-baseline justify-between mb-2">
+                  <p className="text-xs tracking-[.25em] uppercase">Choix</p>
+                  <span className="text-xs text-muted2">Obligatoire</span>
+                </div>
+                <RadioGroup value={selectedVariantId} onValueChange={setSelectedVariantId}>
+                  <div className="space-y-2">
+                    {variants.map((v) => (
+                      <label key={v.id} className="flex items-center justify-between gap-3 border border-ink/10 p-2.5 cursor-pointer hover:border-brand transition-colors">
+                        <div className="flex items-center gap-3">
+                          <RadioGroupItem value={v.id} data-testid={`variant-${v.id}`} />
+                          <div>
+                            <span className="text-sm block">{v.name || v.quantity || "—"}</span>
+                            {v.name && v.quantity && <span className="text-xs text-muted2">{v.quantity}</span>}
+                          </div>
+                        </div>
+                        <span className="text-brand text-sm font-medium">{CHF(v.price)}</span>
+                      </label>
+                    ))}
+                  </div>
+                </RadioGroup>
+              </div>
+            )}
 
             {groups.map((g) => (
               <div key={g.id} className="mb-5">
@@ -321,11 +356,17 @@ function ProductModal({ product, addonGroups, onClose, onAdd }) {
                 <button onClick={() => setQty((q) => q + 1)} className="w-10 h-10 border border-ink/20 flex items-center justify-center hover:bg-cream-surface" data-testid="qty-plus"><Plus size={14}/></button>
               </div>
               <Button disabled={!canAdd} data-testid="add-to-cart-btn"
-                onClick={() => onAdd({
-                  product_id: product.id, name: product.name, quantity: qty,
-                  unit_price: product.price, selected_addons: addonsFlat.map((a) => ({ id: a.id, name: a.name, price: a.price })),
-                  note, line_total: lineTotal,
-                })}
+                onClick={() => {
+                  const variantSuffix = selectedVariant ? ` — ${selectedVariant.name || ""}${selectedVariant.name && selectedVariant.quantity ? " " : ""}${selectedVariant.quantity || ""}`.trim() : "";
+                  onAdd({
+                    product_id: product.id,
+                    name: product.name + (variantSuffix ? " " + variantSuffix : ""),
+                    quantity: qty,
+                    unit_price: unitPrice,
+                    selected_addons: addonsFlat.map((a) => ({ id: a.id, name: a.name, price: a.price })),
+                    note, line_total: lineTotal,
+                  });
+                }}
                 className="flex-1 bg-brand hover:bg-brand-hover text-cream rounded-none tracking-widest uppercase h-11 text-sm">
                 Ajouter · {CHF(lineTotal)}
               </Button>

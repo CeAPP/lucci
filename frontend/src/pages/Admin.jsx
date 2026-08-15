@@ -424,6 +424,7 @@ function MenuTab() {
   const [editingGroup, setEditingGroup] = useState(null);
   const [subtab, setSubtab] = useState("products");
   const [showUpload, setShowUpload] = useState(false);
+  const [showCsv, setShowCsv] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const load = async () => {
@@ -471,7 +472,11 @@ function MenuTab() {
             <Input placeholder="Rechercher" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs bg-transparent border-ink/20 rounded-none focus-visible:ring-brand" />
             <Button onClick={() => setShowUpload(true)} data-testid="bulk-upload-btn"
               variant="outline" className="ml-auto rounded-none border-brand text-brand hover:bg-brand hover:text-cream uppercase text-xs tracking-widest">
-              <Upload size={14} className="mr-1"/> Uploader depuis image
+              <Upload size={14} className="mr-1"/> Uploader images
+            </Button>
+            <Button onClick={() => setShowCsv(true)} data-testid="csv-import-btn"
+              variant="outline" className="rounded-none border-ink/40 hover:bg-ink hover:text-cream uppercase text-xs tracking-widest">
+              <Download size={14} className="mr-1"/> Importer CSV
             </Button>
             <Button onClick={() => setEditing({ menu_type: filterMenu, category_id: catsFor(filterMenu)[0]?.id, price: 0, addon_group_ids: [], is_active: true })}
               data-testid="new-product-btn"
@@ -517,6 +522,7 @@ function MenuTab() {
           </div>
           {editing && <ProductEditor product={editing} cats={cats} groups={groups} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
           {showUpload && <BulkUploadDialog defaultMenu={filterMenu} cats={cats} onClose={() => setShowUpload(false)} onDone={() => { setShowUpload(false); load(); }} />}
+          {showCsv && <CsvImportDialog defaultMenu={filterMenu} cats={cats} onClose={() => setShowCsv(false)} onDone={() => { setShowCsv(false); load(); }} />}
         </>
       )}
 
@@ -626,6 +632,182 @@ function TagOOSPanel({ onChange, refreshKey }) {
         </>
       )}
     </div>
+  );
+}
+
+
+// =========== CSV IMPORT DIALOG ===========
+function CsvImportDialog({ defaultMenu, cats, onClose, onDone }) {
+  const [menuType, setMenuType] = useState(defaultMenu || "restaurant");
+  const [rows, setRows] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(0);
+  const [errors, setErrors] = useState([]);
+
+  const catsFor = (mt) => cats.filter((c) => c.menu_type === mt);
+
+  // Simple CSV parser (handles quotes and escaped commas)
+  const parseCsv = (text) => {
+    const lines = text.split(/\r?\n/).filter((l) => l.trim());
+    const parseLine = (line) => {
+      const out = [];
+      let cur = "", inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+        else if (c === '"') inQ = !inQ;
+        else if (c === "," && !inQ) { out.push(cur); cur = ""; }
+        else cur += c;
+      }
+      out.push(cur);
+      return out.map((s) => s.trim());
+    };
+    if (lines.length === 0) return [];
+    const header = parseLine(lines[0]).map((h) => h.toLowerCase());
+    const idx = {
+      name: header.findIndex((h) => ["name", "nom", "produit"].includes(h)),
+      price: header.findIndex((h) => ["price", "prix"].includes(h)),
+      category: header.findIndex((h) => ["category", "catégorie", "categorie"].includes(h)),
+      image: header.findIndex((h) => ["image", "image_url", "photo"].includes(h)),
+      description: header.findIndex((h) => ["description", "desc"].includes(h)),
+    };
+    if (idx.name === -1 || idx.price === -1) {
+      throw new Error("Colonnes 'name' et 'price' obligatoires (ou 'nom'/'prix').");
+    }
+    return lines.slice(1).map((line) => {
+      const cols = parseLine(line);
+      return {
+        name: cols[idx.name] || "",
+        price: parseFloat((cols[idx.price] || "0").replace(",", ".")) || 0,
+        category_name: idx.category >= 0 ? cols[idx.category] : "",
+        image_url: idx.image >= 0 ? cols[idx.image] : "",
+        description: idx.description >= 0 ? cols[idx.description] : "",
+      };
+    });
+  };
+
+  const onFile = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = parseCsv(reader.result);
+        setRows(parsed);
+        setErrors([]);
+      } catch (err) {
+        toast.error(err.message || "CSV invalide");
+      }
+    };
+    reader.readAsText(f);
+    e.target.value = "";
+  };
+
+  const submit = async () => {
+    if (rows.length === 0) return;
+    setBusy(true);
+    setDone(0);
+    const errs = [];
+    const catList = catsFor(menuType);
+    const catByName = Object.fromEntries(catList.map((c) => [c.name.toLowerCase(), c.id]));
+    const defaultCat = catList[0]?.id;
+    let ok = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r.name || !r.price) { errs.push(`Ligne ${i + 2} : name/price manquant`); setDone((d) => d + 1); continue; }
+      const catId = (r.category_name && catByName[r.category_name.toLowerCase()]) || defaultCat;
+      if (!catId) { errs.push(`Ligne ${i + 2} : aucune catégorie disponible`); setDone((d) => d + 1); continue; }
+      try {
+        await api.post("/products", {
+          name: r.name, description: r.description || "", price: r.price,
+          image_url: r.image_url || null, category_id: catId, menu_type: menuType,
+          addon_group_ids: [], tags: [], variants: [], is_active: true,
+        });
+        ok++;
+      } catch (e) {
+        errs.push(`Ligne ${i + 2} (${r.name}) : ${e?.response?.data?.detail || e.message}`);
+      }
+      setDone((d) => d + 1);
+    }
+    setErrors(errs);
+    setBusy(false);
+    if (ok > 0) toast.success(`${ok} produit(s) importé(s)`);
+    if (errs.length === 0) setTimeout(() => onDone(), 800);
+  };
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && !busy && onClose()}>
+      <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}
+        className="w-[calc(100vw-1rem)] max-w-2xl !bg-cream border-ink/10 rounded-none p-0 max-h-[calc(100dvh-2rem)] overflow-y-auto" data-testid="csv-import-dialog">
+        <DialogTitle className="sr-only">Importer un CSV</DialogTitle>
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-1">
+            <Download size={20} className="text-brand" />
+            <h3 className="font-display text-2xl">Importer un CSV</h3>
+          </div>
+          <p className="text-sm text-muted2 mb-3">Colonnes acceptées : <code className="bg-cream-surface px-1 text-xs">name, price, category, image, description</code> (ou <em>nom, prix, catégorie</em>). Séparateur virgule.</p>
+
+          <div className="mb-4">
+            <p className="text-[10px] tracking-widest uppercase text-muted2 mb-2">Menu cible</p>
+            <div className="flex gap-2">
+              {["restaurant", "epicerie"].map((mt) => (
+                <button key={mt} onClick={() => setMenuType(mt)} data-testid={`csv-menu-${mt}`}
+                  className={`px-4 py-2 text-xs tracking-widest uppercase border ${menuType === mt ? "bg-brand text-cream border-brand" : "border-ink/20 hover:border-brand"}`}>
+                  {mt === "restaurant" ? "Restaurant" : "Épicerie"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label className="block border-2 border-dashed border-ink/20 hover:border-brand p-6 text-center cursor-pointer transition-colors mb-4" data-testid="csv-dropzone">
+            <input type="file" accept=".csv,text/csv" className="hidden" data-testid="csv-file-input" onChange={onFile} />
+            <Download size={22} className="mx-auto mb-2 text-brand" strokeWidth={1.5} />
+            <p className="font-display text-lg">Cliquez pour sélectionner un fichier CSV</p>
+            <p className="text-xs text-muted2 mt-1">Ex : <code className="bg-cream-surface px-1">name,price,category,image</code> puis vos lignes</p>
+          </label>
+
+          {rows.length > 0 && (
+            <div className="mb-4 border border-ink/10 max-h-72 overflow-y-auto" data-testid="csv-preview">
+              <table className="w-full text-xs">
+                <thead className="bg-cream-surface sticky top-0"><tr>
+                  <th className="text-left p-2">Nom</th><th className="text-right p-2">Prix</th>
+                  <th className="text-left p-2">Catégorie</th><th className="text-left p-2">Image</th>
+                </tr></thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i} className="border-t border-ink/5" data-testid={`csv-row-${i}`}>
+                      <td className="p-2">{r.name}</td>
+                      <td className="p-2 text-right">CHF {r.price.toFixed(2)}</td>
+                      <td className="p-2 text-muted2">{r.category_name || "—"}</td>
+                      <td className="p-2 text-muted2 truncate max-w-[120px]" title={r.image_url}>{r.image_url ? "✓" : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {errors.length > 0 && (
+            <div className="mb-4 border border-destructive bg-destructive/10 p-3 text-xs space-y-1 max-h-40 overflow-y-auto" data-testid="csv-errors">
+              {errors.map((e, i) => <p key={i}>• {e}</p>)}
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-2 items-center justify-between">
+            <p className="text-xs text-muted2">
+              {rows.length > 0 && busy ? `Envoi : ${done}/${rows.length}` : `${rows.length} produit(s) prêt(s)`}
+            </p>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button variant="outline" onClick={onClose} disabled={busy} className="flex-1 sm:flex-none rounded-none border-ink/20 uppercase text-xs tracking-widest">Annuler</Button>
+              <Button disabled={busy || rows.length === 0} onClick={submit} data-testid="csv-submit-btn"
+                className="flex-1 sm:flex-none bg-brand hover:bg-brand-hover text-cream rounded-none uppercase text-xs tracking-widest">
+                {busy ? "Envoi…" : `Importer ${rows.length} produit${rows.length > 1 ? "s" : ""}`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -808,7 +990,7 @@ function BulkUploadDialog({ defaultMenu, cats, onClose, onDone }) {
 
 
 function ProductEditor({ product, cats, groups, onClose, onSaved }) {
-  const [p, setP] = useState({ id: product.id, name: product.name || "", description: product.description || "", price: product.price || 0, image_url: product.image_url || "", category_id: product.category_id, menu_type: product.menu_type || "restaurant", addon_group_ids: product.addon_group_ids || [], tags: product.tags || [], out_of_stock_until: product.out_of_stock_until, is_active: product.is_active !== false });
+  const [p, setP] = useState({ id: product.id, name: product.name || "", description: product.description || "", price: product.price || 0, image_url: product.image_url || "", category_id: product.category_id, menu_type: product.menu_type || "restaurant", addon_group_ids: product.addon_group_ids || [], tags: product.tags || [], variants: product.variants || [], out_of_stock_until: product.out_of_stock_until, is_active: product.is_active !== false });
   const [tagInput, setTagInput] = useState("");
   const [uploading, setUploading] = useState(false);
   const save = async () => {
@@ -827,6 +1009,9 @@ function ProductEditor({ product, cats, groups, onClose, onSaved }) {
     setTagInput("");
   };
   const removeTag = (t) => setP({ ...p, tags: p.tags.filter((x) => x !== t) });
+  const addVariant = () => setP({ ...p, variants: [...p.variants, { id: crypto.randomUUID(), name: "", quantity: "", price: 0 }] });
+  const updateVariant = (idx, patch) => setP({ ...p, variants: p.variants.map((v, i) => i === idx ? { ...v, ...patch } : v) });
+  const removeVariant = (idx) => setP({ ...p, variants: p.variants.filter((_, i) => i !== idx) });
   const upload = async (e) => {
     const f = e.target.files?.[0]; if (!f) return;
     setUploading(true);
@@ -873,6 +1058,36 @@ function ProductEditor({ product, cats, groups, onClose, onSaved }) {
               <Button type="button" onClick={addTag} data-testid="tag-add-btn"
                 className="rounded-none bg-ink text-cream hover:bg-brand uppercase text-xs tracking-widest">Ajouter</Button>
             </div>
+          </div>
+
+          {/* Variants (single-select quantity/size options) */}
+          <div className="col-span-2">
+            <div className="flex items-center justify-between mb-2">
+              <Label>Variantes de quantité / taille <span className="text-xs text-muted2 font-normal">(optionnel — le client choisit UNE variante)</span></Label>
+              <Button type="button" onClick={addVariant} data-testid="variant-add-btn"
+                className="rounded-none bg-ink text-cream hover:bg-brand uppercase text-[10px] tracking-widest h-8 px-3"><Plus size={12} className="mr-1"/>Ajouter</Button>
+            </div>
+            {p.variants.length === 0 ? (
+              <p className="text-xs text-muted2 italic">Aucune variante. Le prix ci-dessus s&apos;applique par défaut.</p>
+            ) : (
+              <div className="space-y-2" data-testid="variants-list">
+                {p.variants.map((v, i) => (
+                  <div key={v.id || i} className="grid grid-cols-1 sm:grid-cols-8 gap-2 items-center border border-ink/10 p-2" data-testid={`variant-row-${i}`}>
+                    <Input value={v.name || ""} onChange={(e) => updateVariant(i, { name: e.target.value })}
+                      placeholder="Nom (ex : Petite)" data-testid={`variant-name-${i}`}
+                      className="sm:col-span-3 rounded-none bg-transparent border-ink/20 text-sm" />
+                    <Input value={v.quantity || ""} onChange={(e) => updateVariant(i, { quantity: e.target.value })}
+                      placeholder="Quantité (ex : 250ml)" data-testid={`variant-qty-${i}`}
+                      className="sm:col-span-2 rounded-none bg-transparent border-ink/20 text-sm" />
+                    <Input type="number" step="0.10" value={v.price || 0} onChange={(e) => updateVariant(i, { price: parseFloat(e.target.value) || 0 })}
+                      placeholder="Prix CHF" data-testid={`variant-price-${i}`}
+                      className="sm:col-span-2 rounded-none bg-transparent border-ink/20 text-sm" />
+                    <Button type="button" variant="outline" size="icon" onClick={() => removeVariant(i)} data-testid={`variant-remove-${i}`}
+                      className="rounded-none border-ink/20 h-9 w-9 sm:col-span-1 justify-self-end"><Trash2 size={12}/></Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div><Label>Image URL</Label>
             <Input value={p.image_url} onChange={(e) => setP({...p, image_url: e.target.value})} placeholder="https://... ou /api/uploads/..." className="rounded-none bg-transparent border-ink/20" />

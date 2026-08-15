@@ -92,6 +92,7 @@ class Product(BaseModel):
     menu_type: str  # restaurant | epicerie
     addon_group_ids: List[str] = []
     tags: List[str] = []
+    variants: List[dict] = []  # [{id, name, quantity, price}] — single-choice size/qty options
     out_of_stock_until: Optional[str] = None  # ISO date
     is_active: bool = True
     created_at: str = Field(default_factory=now_iso)
