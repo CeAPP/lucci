@@ -134,3 +134,8 @@ body {
 .link-underline:hover::after { transform-origin: left; transform: scaleX(1); }
 
 [data-debug-wrapper="true"] { display: contents !important; }
+
+
+/* Hide scrollbar on horizontal category pill scrollers */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

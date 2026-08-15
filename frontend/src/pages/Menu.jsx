@@ -92,7 +92,7 @@ export default function Menu({ menuType: propMenuType }) {
       {/* HERO with editorial color */}
       <section className="relative pt-32 pb-14 overflow-hidden">
         <div className={`absolute inset-0 ${menuType === "epicerie" ? "bg-gradient-to-br from-brand/8 to-cream" : "bg-gradient-to-br from-terracotta/8 to-cream"}`} />
-        <div className="absolute top-24 right-8 md:right-16 font-display text-[10rem] md:text-[14rem] leading-none opacity-[.07] select-none">
+        <div className="pointer-events-none absolute top-24 right-8 md:right-16 font-display text-[6rem] sm:text-[8rem] md:text-[12rem] lg:text-[14rem] leading-none opacity-[.07] select-none whitespace-nowrap">
           {menuType === "epicerie" ? "Bottega" : "Menu"}
         </div>
         <div className="relative max-w-[1400px] mx-auto px-6 md:px-10">
@@ -100,10 +100,10 @@ export default function Menu({ menuType: propMenuType }) {
             <span className={`w-12 h-px ${menuType === "epicerie" ? "bg-brand" : "bg-terracotta"}`} />
             <p className={`text-[11px] tracking-[.4em] uppercase ${accentTextClass}`}>{heroTag} · Angelucci's</p>
           </div>
-          <h1 className="font-display text-6xl md:text-7xl lg:text-8xl mb-4 leading-[.95]">
+          <h1 className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl mb-4 leading-[.95] break-words">
             {heroTitle}<span className={accentTextClass}>.</span>
           </h1>
-          <p className="text-muted2 max-w-2xl text-lg">{heroSub}</p>
+          <p className="text-muted2 max-w-2xl text-base sm:text-lg">{heroSub}</p>
           {mode && mode.menu_type === menuType && (
             <div className="mt-8 flex flex-wrap items-center gap-3 text-sm">
               <span className={`inline-flex items-center gap-2 ${accentClass} text-cream px-4 py-2 text-[11px] tracking-widest uppercase`}>
@@ -123,44 +123,51 @@ export default function Menu({ menuType: propMenuType }) {
         </div>
       </section>
 
-      {/* MAIN */}
-      <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-12 pb-40 grid lg:grid-cols-[240px_1fr] gap-12">
-        {/* Categories sidebar sticky */}
-        <aside className="lg:sticky lg:top-28 self-start">
-          <div className="mb-6">
-            <div className="relative">
-              <Search size={16} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted2" />
-              <Input value={search} onChange={(e) => setSearch(e.target.value)}
-                placeholder="Rechercher…" data-testid="menu-search"
-                className="pl-9 bg-transparent border-ink/20 rounded-none focus-visible:ring-brand" />
+      {/* STICKY CATEGORIES BAR — Uber Eats style */}
+      {categories.length > 0 && (
+        <div className="sticky top-20 z-30 bg-cream-surface/95 backdrop-blur-md border-b border-ink/10" data-testid="sticky-cats-bar">
+          <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-3">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar" style={{scrollSnapType: "x mandatory"}}>
+              {categories.map((c) => (
+                <button key={c.id} data-testid={`cat-pill-${c.id}`}
+                  onClick={() => {
+                    const el = document.getElementById(`cat-${c.id}`);
+                    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  className={`shrink-0 px-4 py-2 text-xs sm:text-sm tracking-wide uppercase border transition-colors whitespace-nowrap ${accentBorderClass}/30 hover:${accentClass} hover:text-cream bg-cream`}
+                  style={{scrollSnapAlign: "start"}}>
+                  {c.name}
+                </button>
+              ))}
             </div>
           </div>
-          <p className="text-[10px] tracking-[.3em] uppercase text-muted2 mb-3 hidden lg:block">Catégories</p>
-          <ul className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible">
-            <li><button onClick={() => setActiveCat(null)} data-testid="cat-all"
-              className={`w-full text-left px-3 py-2.5 text-sm tracking-wide transition-all border-l-2 ${!activeCat ? `${accentBorderClass} bg-cream-surface font-medium` : "border-transparent hover:border-ink/20 hover:bg-cream-surface/60"}`}>Tout</button></li>
-            {categories.map((c, i) => (
-              <li key={c.id}><button onClick={() => setActiveCat(c.id)} data-testid={`cat-${c.id}`}
-                className={`w-full text-left px-3 py-2.5 text-sm tracking-wide whitespace-nowrap transition-all border-l-2 flex items-center justify-between ${activeCat===c.id ? `${accentBorderClass} bg-cream-surface font-medium` : "border-transparent hover:border-ink/20 hover:bg-cream-surface/60"}`}>
-                <span>{c.name}</span>
-                <span className="text-[10px] text-muted2 tracking-widest">{String(i+1).padStart(2,"0")}</span>
-              </button></li>
-            ))}
-          </ul>
-        </aside>
+        </div>
+      )}
 
-        {/* Products */}
-        <div className="space-y-16">
+      {/* MAIN — mobile-first single column, categories become sticky bar (above) */}
+      <section className="max-w-[1400px] mx-auto px-4 sm:px-6 md:px-10 pt-6 pb-40">
+        {/* Search bar */}
+        <div className="max-w-md mb-8">
+          <div className="relative">
+            <Search size={16} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted2" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder="Rechercher…" data-testid="menu-search"
+              className="pl-9 bg-transparent border-ink/20 rounded-none focus-visible:ring-brand" />
+          </div>
+        </div>
+
+        {/* Products grouped by category */}
+        <div className="space-y-12 md:space-y-16">
           {grouped.length === 0 && (
             <p className="text-muted2">Aucun produit disponible pour le moment.</p>
           )}
           {grouped.map(({ cat, items }, gi) => (
-            <div key={cat.id} id={`cat-${cat.id}`}>
-              <div className="flex items-baseline gap-4 mb-8">
-                <span className={`font-display text-2xl ${accentTextClass}`}>{String(gi+1).padStart(2,"0")}</span>
-                <h2 className="font-display text-3xl md:text-4xl">{cat.name}</h2>
+            <div key={cat.id} id={`cat-${cat.id}`} className="scroll-mt-36">
+              <div className="flex items-baseline gap-3 md:gap-4 mb-6 md:mb-8">
+                <span className={`font-display text-xl md:text-2xl ${accentTextClass}`}>{String(gi+1).padStart(2,"0")}</span>
+                <h2 className="font-display text-2xl sm:text-3xl md:text-4xl">{cat.name}</h2>
                 <div className="flex-1 border-t border-ink/10" />
-                <span className="text-[10px] tracking-widest uppercase text-muted2">{items.length} produits</span>
+                <span className="text-[10px] tracking-widest uppercase text-muted2 whitespace-nowrap">{items.length} produits</span>
               </div>
               <div className="grid sm:grid-cols-2 gap-4 md:gap-6">
                 {items.map((p) => (
