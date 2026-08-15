@@ -169,7 +169,6 @@ export default function Reservation() {
               className="w-full bg-brand hover:bg-brand-hover text-cream rounded-none tracking-widest uppercase h-12">
               {loading ? "Envoi…" : "Réserver ma table"}
             </Button>
-            <p className="text-xs text-muted2 text-center">Confirmation instantanée par email · Délai minimum 30 min pour aujourd'hui</p>
           </div>
         </div>
       </section>

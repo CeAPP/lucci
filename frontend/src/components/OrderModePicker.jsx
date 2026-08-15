@@ -123,7 +123,8 @@ export default function OrderModePicker({ open, onOpenChange, menuType, schedule
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="!bg-[#FDFBF7] border-ink/10 rounded-none w-[calc(100vw-2rem)] max-w-lg max-h-[90vh] overflow-y-auto p-0"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        className="!bg-[#FDFBF7] border-ink/10 rounded-none w-[calc(100vw-1rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto p-0"
         data-testid="mode-picker"
       >
         <div className="p-5 sm:p-7">

@@ -254,9 +254,9 @@ function ProductModal({ product, addonGroups, onClose, onAdd }) {
 
   return (
     <Dialog open={!!product} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-3xl bg-cream border-ink/10 rounded-none p-0 overflow-hidden max-h-[92vh]" data-testid="product-modal">
+      <DialogContent onOpenAutoFocus={(e) => e.preventDefault()} className="w-[calc(100vw-1rem)] max-w-3xl bg-cream border-ink/10 rounded-none p-0 overflow-hidden max-h-[calc(100dvh-2rem)]" data-testid="product-modal">
         <DialogTitle className="sr-only">{product.name}</DialogTitle>
-        <div className="grid md:grid-cols-2 max-h-[92vh]">
+        <div className="grid md:grid-cols-2 max-h-[calc(100dvh-2rem)]">
           {product.image_url && (
             <div className="h-40 sm:h-56 md:h-auto md:aspect-auto overflow-hidden bg-cream-surface">
               <img src={mediaUrl(product.image_url)} alt={product.name} className="w-full h-full object-cover" />
