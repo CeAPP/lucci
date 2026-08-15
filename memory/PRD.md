@@ -85,6 +85,12 @@ Full-stack website for Farmacia Angelucci (branded ANGELUCCI'S) — Italian rest
 - **Bulk category change** in Admin > Menu > Produits : new dropdown "Changer catégorie…" in the bulk actions bar (`data-testid="bulk-cat-select"` + `bulk-cat-apply`). Applies the target category to every selected product in one click.
 - **Select-all-filtered** button (`data-testid="select-all-filtered"`) next to the search field. Selects (or deselects) every product currently visible after the menu-type + category + search filters. Enables "select all in a category" flow: pick a category in the filter → click "Sélectionner N" → change category / add tag / delete.
 
+## Implemented (2026-02 — Uber-Eats siren + reservation alarm + first-order fix)
+- **Continuous 5-min siren alarm** (Uber Eats-style): `usePing()` now emits an 8-tone 2-second high/low square-wave burst at gain=1.0. `startAlarm()` re-fires every 3 s for 5 min. Auto-resumes `AudioContext` if suspended (idle tab).
+- **Reservation Pushover + admin alarm**: `POST /api/reservations` now sends a Pushover EMERGENCY (priority=2 retry=30 expire=360 sound=siren). New reservations get a `seen_by_admin=false` flag; admin Réservations tab shows red pulsing banner + siren until admin clicks `✓ Vue`, `Confirmer`, `Terminée` or `Annuler`. Backend endpoints: `PATCH /admin/reservations/{id}/seen` and `PATCH /admin/reservations/{id}/status` (both mark seen).
+- **First-order/reservation alarm bug FIX**: replaced `lastIdsRef.current.size > 0` guard with `initializedRef` in both OrdersTab and ReservationsTab. Alarm now fires (a) on the very first new record after mount and (b) also if the initial load already has pending items.
+- **Checkout auto-redirect** made robust: `nav('/suivi/{id}', {replace: true})` so the back button doesn't return to the checkout page.
+
 ## Backlog / Next
 - P1: Stripe online payment (currently paiement sur place)
 - P1: Real Resend API key hookup

@@ -84,7 +84,7 @@ function usePing() {
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       ctxRef.current = new AC();
-      // resume + a silent tap
+      // resume + a silent tap (needed for iOS/Safari)
       const o = ctxRef.current.createOscillator();
       const g = ctxRef.current.createGain();
       g.gain.value = 0;
@@ -96,18 +96,23 @@ function usePing() {
   const play = () => {
     if (!ctxRef.current) return;
     const ctx = ctxRef.current;
+    // Auto-resume if suspended (browser tab was idle / OS locked screen)
+    if (ctx.state === "suspended") { try { ctx.resume(); } catch {} }
     const now = ctx.currentTime;
-    // 4-note louder alarm (was 3-note @ 0.25 gain) — now @ 0.9 gain
-    [0, 0.15, 0.3, 0.45].forEach((t, i) => {
+    // 2-second siren burst — 8 alternating high/low tones, max volume
+    const notes = [1200, 800, 1200, 800, 1200, 800, 1200, 800];
+    notes.forEach((freq, i) => {
+      const t = i * 0.25;
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.type = "square";
-      o.frequency.value = 880 + (i % 2) * 440;
+      o.frequency.value = freq;
       o.connect(g); g.connect(ctx.destination);
       g.gain.setValueAtTime(0.0001, now + t);
-      g.gain.exponentialRampToValueAtTime(0.9, now + t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.13);
-      o.start(now + t); o.stop(now + t + 0.15);
+      g.gain.exponentialRampToValueAtTime(1.0, now + t + 0.03);
+      g.gain.setValueAtTime(1.0, now + t + 0.20);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.24);
+      o.start(now + t); o.stop(now + t + 0.25);
     });
   };
   return { enable, play, enabled: () => !!ctxRef.current };
@@ -120,6 +125,7 @@ function OrdersTab({ ping }) {
   const [rescheduling, setRescheduling] = useState(null);
   const [alarmActive, setAlarmActive] = useState(false);
   const lastIdsRef = useRef(new Set());
+  const initializedRef = useRef(false);
   const alarmTimerRef = useRef(null);
   const alarmDeadlineRef = useRef(0);
 
@@ -129,10 +135,10 @@ function OrdersTab({ ping }) {
     setAlarmActive(false);
   };
 
-  // Ring every 10s during 6 minutes. Auto-stops when no more "new" orders or on timeout.
+  // Continuous 5-minute siren: 2 s burst every 3 s until admin acknowledges or timeout.
   const startAlarm = () => {
     if (alarmTimerRef.current) return; // already ringing
-    alarmDeadlineRef.current = Date.now() + 6 * 60 * 1000; // 6 min
+    alarmDeadlineRef.current = Date.now() + 5 * 60 * 1000; // 5 min
     setAlarmActive(true);
     ping.play();
     alarmTimerRef.current = setInterval(() => {
@@ -140,7 +146,7 @@ function OrdersTab({ ping }) {
       // Only ring if there's still at least one "new" order
       if (lastIdsRef.current.size === 0) { stopAlarm(); return; }
       ping.play();
-    }, 10000);
+    }, 3000);
   };
 
   const load = async () => {
@@ -148,17 +154,22 @@ function OrdersTab({ ping }) {
     setOrders(data);
     // detect new
     const cur = new Set(data.filter((o) => o.status === "new").map((o) => o.id));
-    if (lastIdsRef.current.size > 0) {
+    if (initializedRef.current) {
       let added = 0;
       cur.forEach((id) => { if (!lastIdsRef.current.has(id)) added++; });
       if (added > 0) {
         toast.success(`${added} nouvelle${added>1?"s":""} commande${added>1?"s":""}`);
         startAlarm();
       }
+    } else if (cur.size > 0) {
+      // First load & there are already pending orders → fire alarm too
+      toast.success(`${cur.size} commande${cur.size>1?"s":""} en attente`);
+      startAlarm();
     }
     // If admin acknowledged all new orders, stop alarm
     if (cur.size === 0 && alarmTimerRef.current) stopAlarm();
     lastIdsRef.current = cur;
+    initializedRef.current = true;
   };
   useEffect(() => {
     load();
@@ -215,7 +226,7 @@ function OrdersTab({ ping }) {
             <span className="text-2xl">🔔</span>
             <div>
               <p className="font-display text-lg text-destructive">Nouvelle commande — Alarme active</p>
-              <p className="text-xs text-muted2">L&apos;alarme sonne toutes les 10 s pendant 6 min. Confirmez ou refusez pour l&apos;arrêter.</p>
+              <p className="text-xs text-muted2">Sirène continue pendant 5 min. Confirmez ou refusez pour l&apos;arrêter.</p>
             </div>
           </div>
           <Button onClick={stopAlarm} data-testid="stop-alarm"
@@ -431,26 +442,96 @@ function RescheduleDialog({ order, onClose, onSaved }) {
 }
 
 // =========== RESERVATIONS TAB ===========
-function ReservationsTab() {
+function ReservationsTab({ ping }) {
   const [items, setItems] = useState([]);
-  const load = async () => { const { data } = await api.get("/admin/reservations"); setItems(data); };
-  useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, []);
+  const [alarmActive, setAlarmActive] = useState(false);
+  const lastIdsRef = useRef(new Set());
+  const initializedRef = useRef(false);
+  const alarmTimerRef = useRef(null);
+  const alarmDeadlineRef = useRef(0);
+
+  const stopAlarm = () => {
+    if (alarmTimerRef.current) { clearInterval(alarmTimerRef.current); alarmTimerRef.current = null; }
+    alarmDeadlineRef.current = 0;
+    setAlarmActive(false);
+  };
+  const startAlarm = () => {
+    if (alarmTimerRef.current) return;
+    alarmDeadlineRef.current = Date.now() + 5 * 60 * 1000;
+    setAlarmActive(true);
+    ping.play();
+    alarmTimerRef.current = setInterval(() => {
+      if (Date.now() > alarmDeadlineRef.current) { stopAlarm(); return; }
+      if (lastIdsRef.current.size === 0) { stopAlarm(); return; }
+      ping.play();
+    }, 3000);
+  };
+
+  const load = async () => {
+    const { data } = await api.get("/admin/reservations");
+    setItems(data);
+    const cur = new Set(data.filter((r) => r.status === "confirmed" && !r.seen_by_admin).map((r) => r.id));
+    if (initializedRef.current) {
+      let added = 0;
+      cur.forEach((id) => { if (!lastIdsRef.current.has(id)) added++; });
+      if (added > 0) {
+        toast.success(`${added} nouvelle${added>1?"s":""} réservation${added>1?"s":""}`);
+        startAlarm();
+      }
+    } else if (cur.size > 0) {
+      toast.success(`${cur.size} réservation${cur.size>1?"s":""} en attente`);
+      startAlarm();
+    }
+    if (cur.size === 0 && alarmTimerRef.current) stopAlarm();
+    lastIdsRef.current = cur;
+    initializedRef.current = true;
+  };
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 8000);
+    return () => { clearInterval(t); stopAlarm(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const setStatus = async (r, status) => { await api.patch(`/admin/reservations/${r.id}/status`, null, { params: { status } }); load(); };
+  const markSeen = async (r) => { try { await api.patch(`/admin/reservations/${r.id}/seen`); } catch {} load(); };
 
   return (
     <div className="space-y-3">
+      {alarmActive && (
+        <div className="mb-4 p-4 bg-destructive/10 border-2 border-destructive flex items-center justify-between animate-pulse" data-testid="res-alarm-banner">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🔔</span>
+            <div>
+              <p className="font-display text-lg text-destructive">Nouvelle réservation — Alarme active</p>
+              <p className="text-xs text-muted2">Sirène continue pendant 5 min. Marquez « vue » pour l&apos;arrêter.</p>
+            </div>
+          </div>
+          <Button onClick={stopAlarm} data-testid="stop-res-alarm"
+            className="rounded-none bg-destructive text-cream uppercase text-xs tracking-widest h-10 hover:bg-destructive/90">
+            🔕 Arrêter l&apos;alarme
+          </Button>
+        </div>
+      )}
       {items.length === 0 && <p className="text-muted2">Aucune réservation.</p>}
       {items.map((r) => (
-        <div key={r.id} className="border border-ink/10 bg-cream p-5 flex flex-wrap items-start gap-4 justify-between" data-testid={`res-${r.id}`}>
+        <div key={r.id} className={`border ${!r.seen_by_admin && r.status === "confirmed" ? "border-brand border-2" : "border-ink/10"} bg-cream p-5 flex flex-wrap items-start gap-4 justify-between`} data-testid={`res-${r.id}`}>
           <div className="flex-1 min-w-[240px]">
             <div className="flex gap-3 items-center mb-1">
               <span className={`text-[10px] tracking-widest uppercase px-2 py-1 ${r.status==="confirmed"?"bg-brand text-cream":r.status==="cancelled"?"bg-red-800 text-cream":"bg-ink/40 text-cream"}`}>{r.status}</span>
+              {!r.seen_by_admin && r.status === "confirmed" && (
+                <span className="text-[10px] tracking-widest uppercase px-2 py-1 bg-destructive text-cream animate-pulse">Nouveau</span>
+              )}
               <span className="font-display text-2xl">{r.date} · {r.time}</span>
             </div>
             <p className="text-lg">{r.first_name} · <a href={`tel:${r.phone}`} className="text-brand link-underline">{r.phone}</a> · <span className="text-muted2">{r.email}</span></p>
             <p className="text-sm text-muted2">Personnes : <strong>{r.people}</strong>{r.comment ? ` · Commentaire : ${r.comment}` : ""}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            {!r.seen_by_admin && r.status === "confirmed" && (
+              <Button size="sm" onClick={() => markSeen(r)} data-testid={`res-mark-seen-${r.id}`}
+                className="rounded-none bg-emerald-700 hover:bg-emerald-800 text-cream uppercase text-xs">✓ Vue</Button>
+            )}
             <Button size="sm" onClick={() => setStatus(r, "confirmed")} className="rounded-none bg-brand hover:bg-brand-hover text-cream uppercase text-xs">Confirmer</Button>
             <Button size="sm" onClick={() => setStatus(r, "done")} className="rounded-none bg-ink text-cream uppercase text-xs">Terminée</Button>
             <Button size="sm" variant="outline" onClick={() => setStatus(r, "cancelled")} className="rounded-none border-ink/20 uppercase text-xs">Annuler</Button>
@@ -1839,7 +1920,7 @@ export default function AdminDashboard() {
             <p className="text-xs tracking-widest uppercase text-brand mb-2">Angelucci&apos;s · Admin</p>
             <h2 className="font-display text-2xl mb-3">Prêt à recevoir les commandes ?</h2>
             <p className="text-sm text-muted2 mb-5">
-              Pour ne rater aucune commande, on active le son (alarme toutes les 10 s pendant 6 min) et le mode anti-veille (écran maintenu allumé).
+              Pour ne rater aucune commande, on active le son (sirène continue pendant 5 min) et le mode anti-veille (écran maintenu allumé).
             </p>
             <ul className="text-sm space-y-2 mb-6">
               <li className="flex items-center gap-2"><Volume2 size={16} className="text-brand"/> Alerte sonore continue</li>
@@ -1902,7 +1983,7 @@ export default function AdminDashboard() {
 
           <div className="mt-8">
             <TabsContent value="orders"><OrdersTab ping={ping} /></TabsContent>
-            <TabsContent value="reservations"><ReservationsTab /></TabsContent>
+            <TabsContent value="reservations"><ReservationsTab ping={ping} /></TabsContent>
             <TabsContent value="menu"><MenuTab /></TabsContent>
             <TabsContent value="hours"><HoursTab /></TabsContent>
             <TabsContent value="promos"><PromosTab /></TabsContent>

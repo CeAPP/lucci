@@ -837,6 +837,7 @@ async def create_reservation(r: ReservationCreate, request: Request):
         "people": r.people,
         "comment": r.comment,
         "status": "confirmed",
+        "seen_by_admin": False,
         "ip": ip,
         "created_at": now_iso(),
     }
@@ -862,6 +863,27 @@ async def create_reservation(r: ReservationCreate, request: Request):
     except Exception as e:
         logger.error(f"Reservation email failure: {e}")
 
+    # Pushover EMERGENCY alert on new reservation (priority 2 — retry every 30s during 6 min)
+    try:
+        pu_token = os.environ.get("PUSHOVER_API_TOKEN")
+        pu_user = os.environ.get("PUSHOVER_USER_KEY")
+        if pu_token and pu_user:
+            body = (
+                f"RÉSERVATION · {doc['date']} · {doc['time']}\n"
+                f"{doc['first_name']} · {doc['phone']}\n"
+                f"Personnes : {doc['people']}"
+                + (f"\nCommentaire : {doc['comment']}" if doc.get('comment') else "")
+            )
+            import requests as _req
+            _req.post("https://api.pushover.net/1/messages.json", data={
+                "token": pu_token, "user": pu_user,
+                "title": "Nouvelle réservation — Angelucci's",
+                "message": body,
+                "priority": 2, "retry": 30, "expire": 360, "sound": "siren",
+            }, timeout=10)
+    except Exception as e:
+        logger.error(f"Pushover reservation failure: {e}")
+
     return {"id": doc["id"], "status": "confirmed"}
 
 
@@ -874,7 +896,13 @@ async def list_reservations(user: dict = Depends(get_current_user)):
 async def set_res_status(rid: str, status: str, user: dict = Depends(get_current_user)):
     if status not in ["confirmed", "cancelled", "done"]:
         raise HTTPException(400)
-    await db.reservations.update_one({"id": rid}, {"$set": {"status": status}})
+    await db.reservations.update_one({"id": rid}, {"$set": {"status": status, "seen_by_admin": True}})
+    return {"ok": True}
+
+
+@api.patch("/admin/reservations/{rid}/seen")
+async def mark_res_seen(rid: str, user: dict = Depends(get_current_user)):
+    await db.reservations.update_one({"id": rid}, {"$set": {"seen_by_admin": True}})
     return {"ok": True}
 
 

@@ -72,9 +72,10 @@ export default function Checkout() {
         promo_code: form.promo_code || null,
       };
       const { data } = await api.post("/orders", payload);
-      toast.success(`Commande #${data.order_number} confirmée`);
       clearCart(menuType);
-      nav(`/suivi/${data.id}`);
+      toast.success(`Commande #${data.order_number} confirmée`);
+      // Immediate hard redirect to tracking page (replace history so back button doesn't go to checkout)
+      nav(`/suivi/${data.id}`, { replace: true });
     } catch (e) {
       setError(e.response?.data?.detail || "Erreur lors de la commande");
     } finally {
