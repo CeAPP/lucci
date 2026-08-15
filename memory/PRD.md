@@ -74,8 +74,13 @@ Full-stack website for Farmacia Angelucci (branded ANGELUCCI'S) — Italian rest
 - **Admin Commandes** : "Avancer →" replaced by contextual "✓ Confirmer la commande" (new) / "Marquer prêt" (preparing) / "Terminer" (ready). Added "**Refuser**" button (sets status="rejected"). Added "**Repousser →**" link under créneau — opens RescheduleDialog with day+10min-slot picker. New "Refusée" filter and status.
 - **Backend** : `PATCH /api/admin/orders/{id}/reschedule?pickup_time=...&pickup_time_label=...`. Added `rejected` to allowed status list. Added `epicerie_days_ahead` to settings (default 7).
 
+## Implemented (2026-02 — Time-restricted categories + louder alarm + client tracking)
+- **Category time restriction** (`Category.restricted_start_hour` + `restricted_end_hour`, both Optional[int] 0-23). Admin Menu > Catégories dialog: toggle "Restreindre les heures de commande" reveals 2 hour inputs. Backend `POST /api/orders` uses `ZoneInfo("Europe/Zurich")` to check current local hour; if any ordered product's category is inside the (potentially wrap-around midnight) window, returns 400 with clear FR message. Menu page shows per-category badge (`data-testid=cat-restrict-badge-{id}`) and disables product buttons during blocked window.
+- **Alarm louder & every 10 s**: `usePing()` upgraded to square-wave 4-note @ 0.9 gain (was sine @ 0.25). `startAlarm()` interval 30 s → 10 s. Banner + ready-modal copy updated.
+- **Client tracking page `/suivi/:id`**: polling 15 s → 8 s. Always-visible "Une question ? Appelez-nous" banner (`data-testid=contact-banner`). Urgent red pulsing callout (`data-testid=urgent-callout`) appears ONLY when `status=new` AND `created_at > 2 min` ago. New `rejected` status handled with dedicated red block.
+- **Email tracking link**: order confirmation email now embeds a "SUIVRE MA COMMANDE →" CTA linking to `{PUBLIC_SITE_URL}/suivi/{id}`. `PUBLIC_SITE_URL` set to production host in `backend/.env`.
+
 ## Backlog / Next
-- P1: Seed 5 real restaurant + 5 real épicerie products with `featured` flag for landing "Plats phares" (skipped for now — user to provide real names/prices)
 - P1: Stripe online payment (currently paiement sur place)
 - P1: Real Resend API key hookup
 - P2: Notify customer by email on reject/reschedule

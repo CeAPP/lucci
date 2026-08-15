@@ -1,0 +1,27 @@
+{
+  "summary": "Iteration 14 testing — all 4 new features validated end-to-end. Backend: 8/8 pytest tests pass (category restriction schema POST+PUT persistence, order blocked when current Zurich hour is within window, wrap-around window blocking, order succeeds outside window, /suivi tracking link in email template, GET /api/orders/{id} 404). Frontend: admin category edit dialog toggle (defaults 20/6) saves and reloads correctly; alarm interval 10000ms literal verified in Admin.jsx and via the wake-lock modal copy ('toutes les 10 s pendant 6 min'); /suivi/{id} shows contact-banner unconditionally, phone tel: link, correct status-label ('En attente de confirmation'), urgent-callout appears only when status=new AND created_at older than 2 min (verified by patching Mongo to 3 min ago), and does NOT appear on fresh orders; /commander page shows cat-restrict-badge-{catId} with 'Indisponible jusqu'à Xh' when current hour is inside the restriction window.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter14_restrictions_tracking.py",
+    "/app/test_reports/pytest/iter14.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Admin.jsx is 1881 lines — should be split into per-tab modules (OrdersTab, MenuTab, SettingsTab, etc.) for maintainability.",
+    "server.py is 962 lines and mixes routers/models — consider splitting into routers/ and models/ modules.",
+    "Category CRUD endpoints do not validate 0<=restricted_start_hour<=23 (Pydantic Optional[int] accepts any int). Backend silently accepts e.g. 25. Recommend adding Field(ge=0, le=23) constraints.",
+    "Time-restriction validation is skipped if only one of start/end is set (both required together). Consider raising 422 at persistence time when only one is provided instead of silently ignoring at order time.",
+    "OrderTracking polls every 8s while a separate clock updates every 15s — logic works but a single interval could serve both."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter14_restrictions_tracking.py"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% (all flows)"},
+  "test_credentials": "AngelCED26 / CE26$Lucc (owner) — from /app/memory/test_credentials.md",
+  "seed_data_creation": "Tests create their own TEST_ prefixed categories/products/orders and clean up afterwards. One TEST_ order remains (no delete-order endpoint) — safe.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite for iteration 14 lives at /app/backend/tests/test_iter14_restrictions_tracking.py. It creates temp categories/products, so it is safe to re-run. For /suivi urgent-callout testing, the pattern is: POST /api/orders → update the order in Mongo with created_at older than 2 min → open /suivi/{id}. Category restriction: sh<eh blocks [sh,eh); sh>eh wraps midnight (h>=sh OR h<eh).",
+  "rca of the issue": "N/A — all features working as specified."
+}

@@ -64,6 +64,10 @@ class Category(BaseModel):
     name: str
     menu_type: str  # "restaurant" | "epicerie"
     order: int = 0
+    # Optional time window during which this category CANNOT be ordered (e.g. alcohol 20:00 → 06:00).
+    # Both fields required together. Hours are 0–23 (Europe/Zurich local time). If start > end the window wraps midnight.
+    restricted_start_hour: Optional[int] = None
+    restricted_end_hour: Optional[int] = None
 
 
 class AddonOption(BaseModel):
@@ -663,6 +667,30 @@ async def create_order(order_in: OrderCreate):
     settings = await db.settings.find_one({"_id": "settings"}, {"_id": 0}) or {}
     if not settings.get("orders_enabled", True):
         raise HTTPException(400, "Les commandes sont désactivées")
+
+    # Check time-restricted categories (e.g. alcohol) — Europe/Zurich local time
+    try:
+        from zoneinfo import ZoneInfo
+        now_local = datetime.now(ZoneInfo("Europe/Zurich"))
+    except Exception:
+        now_local = datetime.now()
+    now_hour = now_local.hour
+    prod_ids = [it.product_id for it in order_in.items]
+    prods = await db.products.find({"id": {"$in": prod_ids}}, {"_id": 0}).to_list(500)
+    cat_ids = list({p["category_id"] for p in prods if p.get("category_id")})
+    if cat_ids:
+        cats = await db.categories.find({"id": {"$in": cat_ids}}, {"_id": 0}).to_list(500)
+        for c in cats:
+            sh, eh = c.get("restricted_start_hour"), c.get("restricted_end_hour")
+            if sh is None or eh is None:
+                continue
+            # window may wrap midnight (sh=20, eh=6 → block 20:00–23:59 AND 00:00–05:59)
+            in_window = (sh <= now_hour < eh) if sh < eh else (now_hour >= sh or now_hour < eh)
+            if in_window:
+                raise HTTPException(
+                    400,
+                    f"La catégorie « {c['name']} » ne peut pas être commandée entre {sh:02d}h et {eh:02d}h (loi suisse)."
+                )
 
     totals = await _calc_totals(order_in)
     order = {

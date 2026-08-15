@@ -161,18 +161,31 @@ export default function Menu({ menuType: propMenuType }) {
           {grouped.length === 0 && (
             <p className="text-muted2">Aucun produit disponible pour le moment.</p>
           )}
-          {grouped.map(({ cat, items }, gi) => (
+          {grouped.map(({ cat, items }, gi) => {
+            const hasRestrict = cat.restricted_start_hour != null && cat.restricted_end_hour != null;
+            const nowH = new Date().toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "Europe/Zurich" });
+            const currentHour = parseInt(nowH, 10);
+            const sh = cat.restricted_start_hour, eh = cat.restricted_end_hour;
+            const inBlockedWindow = hasRestrict && (sh < eh ? (currentHour >= sh && currentHour < eh) : (currentHour >= sh || currentHour < eh));
+            return (
             <div key={cat.id} id={`cat-${cat.id}`} className="scroll-mt-36">
-              <div className="flex items-baseline gap-3 md:gap-4 mb-6 md:mb-8">
+              <div className="flex flex-wrap items-baseline gap-3 md:gap-4 mb-6 md:mb-8">
                 <span className={`font-display text-xl md:text-2xl ${accentTextClass}`}>{String(gi+1).padStart(2,"0")}</span>
                 <h2 className="font-display text-2xl sm:text-3xl md:text-4xl">{cat.name}</h2>
+                {hasRestrict && (
+                  <span data-testid={`cat-restrict-badge-${cat.id}`}
+                    className={`text-[10px] tracking-widest uppercase px-2 py-1 ${inBlockedWindow ? "bg-destructive text-cream" : "bg-ink/10 text-ink"}`}>
+                    {inBlockedWindow ? `Indisponible jusqu'à ${String(eh).padStart(2,"0")}h` : `Commandable ${String(eh).padStart(2,"0")}h → ${String(sh).padStart(2,"0")}h`}
+                  </span>
+                )}
                 <div className="flex-1 border-t border-ink/10" />
                 <span className="text-[10px] tracking-widest uppercase text-muted2 whitespace-nowrap">{items.length} produits</span>
               </div>
               <div className="grid sm:grid-cols-2 gap-4 md:gap-6">
                 {items.map((p) => (
                   <button key={p.id} onClick={() => setSelectedProduct(p)} data-testid={`product-${p.id}`}
-                    className={`group text-left bg-cream border border-ink/8 hover:border-terracotta hover:shadow-lg transition-all overflow-hidden flex flex-row relative`}>
+                    disabled={inBlockedWindow}
+                    className={`group text-left bg-cream border border-ink/8 hover:border-terracotta hover:shadow-lg transition-all overflow-hidden flex flex-row relative ${inBlockedWindow ? "opacity-50 pointer-events-none" : ""}`}>
                     {p.image_url ? (
                       <div className="w-32 sm:w-44 shrink-0 aspect-square overflow-hidden relative">
                         <img src={mediaUrl(p.image_url)} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
@@ -198,7 +211,8 @@ export default function Menu({ menuType: propMenuType }) {
                 ))}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 

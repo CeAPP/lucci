@@ -97,15 +97,17 @@ function usePing() {
     if (!ctxRef.current) return;
     const ctx = ctxRef.current;
     const now = ctx.currentTime;
-    [0, 0.15, 0.3].forEach((t, i) => {
+    // 4-note louder alarm (was 3-note @ 0.25 gain) — now @ 0.9 gain
+    [0, 0.15, 0.3, 0.45].forEach((t, i) => {
       const o = ctx.createOscillator();
       const g = ctx.createGain();
-      o.frequency.value = 880 + i * 220;
+      o.type = "square";
+      o.frequency.value = 880 + (i % 2) * 440;
       o.connect(g); g.connect(ctx.destination);
       g.gain.setValueAtTime(0.0001, now + t);
-      g.gain.exponentialRampToValueAtTime(0.25, now + t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.12);
-      o.start(now + t); o.stop(now + t + 0.14);
+      g.gain.exponentialRampToValueAtTime(0.9, now + t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.13);
+      o.start(now + t); o.stop(now + t + 0.15);
     });
   };
   return { enable, play, enabled: () => !!ctxRef.current };
@@ -127,7 +129,7 @@ function OrdersTab({ ping }) {
     setAlarmActive(false);
   };
 
-  // Ring every 30s during 6 minutes. Auto-stops when no more "new" orders or on timeout.
+  // Ring every 10s during 6 minutes. Auto-stops when no more "new" orders or on timeout.
   const startAlarm = () => {
     if (alarmTimerRef.current) return; // already ringing
     alarmDeadlineRef.current = Date.now() + 6 * 60 * 1000; // 6 min
@@ -138,7 +140,7 @@ function OrdersTab({ ping }) {
       // Only ring if there's still at least one "new" order
       if (lastIdsRef.current.size === 0) { stopAlarm(); return; }
       ping.play();
-    }, 30000);
+    }, 10000);
   };
 
   const load = async () => {
@@ -213,7 +215,7 @@ function OrdersTab({ ping }) {
             <span className="text-2xl">🔔</span>
             <div>
               <p className="font-display text-lg text-destructive">Nouvelle commande — Alarme active</p>
-              <p className="text-xs text-muted2">L'alarme sonne toutes les 30 s pendant 6 min. Confirmez ou refusez pour l'arrêter.</p>
+              <p className="text-xs text-muted2">L&apos;alarme sonne toutes les 10 s pendant 6 min. Confirmez ou refusez pour l&apos;arrêter.</p>
             </div>
           </div>
           <Button onClick={stopAlarm} data-testid="stop-alarm"
@@ -1267,6 +1269,39 @@ function CategoriesEditor({ cats, onChange, editing, setEditing }) {
                   <option value="restaurant">Restaurant</option><option value="epicerie">Épicerie</option>
                 </select>
               </div>
+              <div className="border-t border-ink/10 pt-3">
+                <label className="flex items-center gap-2 mb-2 cursor-pointer">
+                  <input type="checkbox"
+                    checked={editing.restricted_start_hour != null && editing.restricted_end_hour != null}
+                    onChange={(e) => setEditing({
+                      ...editing,
+                      restricted_start_hour: e.target.checked ? 20 : null,
+                      restricted_end_hour: e.target.checked ? 6 : null,
+                    })}
+                    data-testid="cat-restrict-toggle"
+                  />
+                  <span className="text-sm">Restreindre les heures de commande (ex : alcool)</span>
+                </label>
+                {editing.restricted_start_hour != null && editing.restricted_end_hour != null && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs">Bloqué de (h)</Label>
+                      <Input type="number" min="0" max="23" value={editing.restricted_start_hour}
+                        onChange={(e) => setEditing({...editing, restricted_start_hour: parseInt(e.target.value) || 0})}
+                        data-testid="cat-restrict-start"
+                        className="rounded-none bg-transparent border-ink/20" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Bloqué jusqu&apos;à (h, exclu)</Label>
+                      <Input type="number" min="0" max="23" value={editing.restricted_end_hour}
+                        onChange={(e) => setEditing({...editing, restricted_end_hour: parseInt(e.target.value) || 0})}
+                        data-testid="cat-restrict-end"
+                        className="rounded-none bg-transparent border-ink/20" />
+                    </div>
+                    <p className="col-span-2 text-[11px] text-muted2">Ex : de 20 à 6 = interdit à commander entre 20h et 06h (heure de Zurich). Fenêtre autour de minuit supportée.</p>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex gap-2 mt-4">
               <Button data-testid="cat-save-btn" onClick={async () => {
@@ -1767,7 +1802,7 @@ export default function AdminDashboard() {
             <p className="text-xs tracking-widest uppercase text-brand mb-2">Angelucci&apos;s · Admin</p>
             <h2 className="font-display text-2xl mb-3">Prêt à recevoir les commandes ?</h2>
             <p className="text-sm text-muted2 mb-5">
-              Pour ne rater aucune commande, on active le son (alarme toutes les 30 s pendant 6 min) et le mode anti-veille (écran maintenu allumé).
+              Pour ne rater aucune commande, on active le son (alarme toutes les 10 s pendant 6 min) et le mode anti-veille (écran maintenu allumé).
             </p>
             <ul className="text-sm space-y-2 mb-6">
               <li className="flex items-center gap-2"><Volume2 size={16} className="text-brand"/> Alerte sonore continue</li>

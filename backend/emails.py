@@ -12,6 +12,7 @@ RESTAURANT_EMAIL = os.environ.get("RESTAURANT_EMAIL", "")
 RESTAURANT_NAME = os.environ.get("RESTAURANT_NAME", "Angelucci's")
 RESTAURANT_PHONE = os.environ.get("RESTAURANT_PHONE", "")
 RESTAURANT_ADDRESS = os.environ.get("RESTAURANT_ADDRESS", "")
+PUBLIC_SITE_URL = os.environ.get("PUBLIC_SITE_URL", "")
 
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
@@ -91,6 +92,7 @@ async def send_order_confirmation(order: dict) -> None:
           <td style="text-align:right;padding-top:8px;font-size:16px;"><strong>{_fmt_price(order['total'])}</strong></td></tr>
     </table>
     <p style="padding:12px;background:{BRAND_COLOR};color:#fff;"><strong>Paiement sur place</strong> (Twint, cash ou carte).</p>
+    <p style="text-align:center;margin:20px 0;"><a href="{PUBLIC_SITE_URL}/suivi/{order['id']}" style="display:inline-block;padding:12px 24px;background:{DARK};color:#fff;text-decoration:none;letter-spacing:1px;font-size:13px;">SUIVRE MA COMMANDE →</a></p>
     <p style="color:#991B1B;">⚠ Si votre commande n'est pas confirmée sous 2 min, appelez-nous au <a href="tel:{RESTAURANT_PHONE}" style="color:#991B1B;">{RESTAURANT_PHONE}</a>.</p>
     <p>À bientôt,<br/>L'équipe {RESTAURANT_NAME}</p>
     """
