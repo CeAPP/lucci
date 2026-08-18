@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Allow: /commander
+Allow: /epicerie
+Allow: /reserver
+Allow: /histoire
+Allow: /contact
+
+# Do not index admin, cart, checkout or private order tracking pages
+Disallow: /Angel/
+Disallow: /panier
+Disallow: /checkout/
+Disallow: /suivi/
+
+Sitemap: https://pizzeria-app-26.emergent.host/sitemap.xml

@@ -635,7 +635,15 @@ function MenuTab() {
               className="bg-brand hover:bg-brand-hover text-cream rounded-none uppercase text-xs tracking-widest"><Plus size={14} className="mr-1"/> Nouveau produit</Button>
           </div>
 
-          <TagOOSPanel onChange={load} refreshKey={refreshKey} />
+          <div className="grid md:grid-cols-2 gap-4 mb-5">
+            <TagOOSPanel onChange={load} refreshKey={refreshKey} />
+            <QuickTagPanel
+              products={products}
+              selectedIds={selectedIds}
+              refreshKey={refreshKey}
+              onApplied={() => { setSelectedIds(new Set()); load(); }}
+            />
+          </div>
 
           {/* MULTI-SELECT BULK ACTIONS BAR — shows when at least 1 product selected */}
           {selectedIds.size > 0 && (
@@ -750,6 +758,82 @@ function MenuTab() {
 }
 
 // =========== TAG-BASED OUT-OF-STOCK PANEL ===========
+// =========== QUICK ADD TAG PANEL — 1-click add existing OR create-new tag to selected products ===========
+function QuickTagPanel({ products, selectedIds, refreshKey, onApplied }) {
+  const [existingTags, setExistingTags] = useState([]);
+  const [newTag, setNewTag] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    try {
+      const { data } = await api.get("/admin/tags");
+      setExistingTags(data);
+    } catch {}
+  };
+  useEffect(() => { load(); }, [refreshKey]);
+
+  const applyTag = async (tag) => {
+    if (!tag) return;
+    if (selectedIds.size === 0) { toast.error("Cochez d'abord les produits à étiqueter"); return; }
+    setBusy(true);
+    try {
+      await Promise.all([...selectedIds].map((id) => {
+        const p = products.find((x) => x.id === id);
+        if (!p) return null;
+        const nextTags = Array.from(new Set([...(p.tags || []), tag]));
+        return api.put(`/products/${id}`, { ...p, tags: nextTags });
+      }));
+      toast.success(`« ${tag} » ajoutée à ${selectedIds.size} produit(s)`);
+      setNewTag("");
+      onApplied && onApplied();
+      load();
+    } catch (e) {
+      toast.error(`Erreur : ${e?.response?.data?.detail || e.message}`);
+    } finally { setBusy(false); }
+  };
+
+  const canApply = selectedIds.size > 0;
+
+  return (
+    <div className="border border-ink/10 bg-cream-surface/60 p-4" data-testid="quick-tag-panel">
+      <div className="mb-3">
+        <p className="text-[10px] tracking-[.3em] uppercase text-brand">Ajouter une étiquette rapide</p>
+        <p className="text-xs text-muted2">
+          {canApply
+            ? `Cliquez une étiquette pour l'ajouter aux ${selectedIds.size} produit(s) cochés`
+            : "Cochez d'abord des produits ci-dessous, puis cliquez sur une étiquette"}
+        </p>
+      </div>
+
+      {existingTags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-3" data-testid="quick-tag-chips">
+          {existingTags.map((t) => (
+            <button key={t.tag} disabled={!canApply || busy} onClick={() => applyTag(t.tag)}
+              data-testid={`quick-tag-${t.tag}`}
+              className={`inline-flex items-center gap-1 border px-2.5 py-1 text-xs transition-all ${canApply ? "border-brand text-brand hover:bg-brand hover:text-cream cursor-pointer" : "border-ink/15 text-muted2 cursor-not-allowed opacity-60"}`}>
+              + {t.tag}
+              <span className="text-[10px] opacity-70">({t.product_count})</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex gap-2 items-center">
+        <Input value={newTag} onChange={(e) => setNewTag(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && newTag.trim()) applyTag(newTag.trim().toLowerCase()); }}
+          placeholder="Nouvelle étiquette (ex : jambon)" data-testid="quick-tag-new-input"
+          className="bg-transparent border-ink/20 rounded-none text-sm h-9 flex-1" />
+        <Button disabled={!canApply || !newTag.trim() || busy} onClick={() => applyTag(newTag.trim().toLowerCase())}
+          data-testid="quick-tag-new-apply"
+          className="rounded-none bg-brand hover:bg-brand-hover text-cream uppercase text-xs tracking-widest h-9">
+          {busy ? "…" : "Créer & appliquer"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+
 function TagOOSPanel({ onChange, refreshKey }) {
   const [tags, setTags] = useState([]);
   const [selectedTag, setSelectedTag] = useState("");
@@ -791,7 +875,7 @@ function TagOOSPanel({ onChange, refreshKey }) {
   };
 
   return (
-    <div className="border border-ink/10 bg-cream-surface/60 p-4 mb-5" data-testid="tag-oos-panel">
+    <div className="border border-ink/10 bg-cream-surface/60 p-4" data-testid="tag-oos-panel">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div>
           <p className="text-[10px] tracking-[.3em] uppercase text-brand">Rupture par étiquette</p>

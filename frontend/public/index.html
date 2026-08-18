@@ -74,7 +74,12 @@
                 "longitude": 6.6323
               },
               "hasMenu": "https://pizzeria-app-26.emergent.host/commander",
-              "areaServed": { "@type": "City", "name": "Lausanne" }
+              "areaServed": { "@type": "City", "name": "Lausanne" },
+              "openingHoursSpecification": [
+                { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Tuesday","Wednesday","Thursday","Friday"], "opens": "11:30", "closes": "14:00" },
+                { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Tuesday","Wednesday","Thursday","Friday","Saturday"], "opens": "18:00", "closes": "22:00" },
+                { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Saturday"], "opens": "11:30", "closes": "14:00" }
+              ]
             },
             {
               "@type": "Store",
