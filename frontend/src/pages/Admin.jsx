@@ -560,6 +560,8 @@ function MenuTab() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkTag, setBulkTag] = useState("");
   const [bulkCat, setBulkCat] = useState("");
+  const [showNewTag, setShowNewTag] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // { kind: 'single'|'bulk', target?: product, count?: n, onConfirm: fn }
 
   const load = async () => {
     const [p, c, g] = await Promise.all([
@@ -573,7 +575,11 @@ function MenuTab() {
   const filtered = products.filter((p) => p.menu_type === filterMenu && (!filterCat || p.category_id === filterCat) && (!search || p.name.toLowerCase().includes(search.toLowerCase())));
   const tagOptions = Array.from(new Set(products.flatMap((p) => p.tags || []))).sort();
 
-  const del = async (p) => { if (!confirm("Supprimer ?")) return; await api.delete(`/products/${p.id}`); load(); };
+  const del = (p) => setDeleteConfirm({
+    kind: "single",
+    target: p,
+    onConfirm: async () => { await api.delete(`/products/${p.id}`); setDeleteConfirm(null); load(); },
+  });
   const setOOS = async (p, days) => {
     let until = "";
     if (days > 0) { const d = new Date(); d.setDate(d.getDate() + days); until = d.toISOString().split("T")[0]; }
@@ -605,23 +611,6 @@ function MenuTab() {
               {catsFor(filterMenu).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <Input placeholder="Rechercher" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs bg-transparent border-ink/20 rounded-none focus-visible:ring-brand" />
-            <Button onClick={() => {
-                const allIds = new Set(filtered.map((x) => x.id));
-                setSelectedIds((prev) => {
-                  // If all filtered are already selected → clear only those; else add all
-                  const allAlreadyIn = filtered.length > 0 && filtered.every((x) => prev.has(x.id));
-                  const next = new Set(prev);
-                  if (allAlreadyIn) filtered.forEach((x) => next.delete(x.id));
-                  else allIds.forEach((id) => next.add(id));
-                  return next;
-                });
-              }}
-              data-testid="select-all-filtered" variant="outline"
-              className="rounded-none border-ink/40 uppercase text-xs tracking-widest">
-              {filtered.length > 0 && filtered.every((x) => selectedIds.has(x.id))
-                ? `Désélectionner ${filtered.length}`
-                : `Sélectionner ${filtered.length}`}
-            </Button>
             <Button onClick={() => setShowUpload(true)} data-testid="bulk-upload-btn"
               variant="outline" className="ml-auto rounded-none border-brand text-brand hover:bg-brand hover:text-cream uppercase text-xs tracking-widest">
               <Upload size={14} className="mr-1"/> Uploader images
@@ -633,6 +622,10 @@ function MenuTab() {
             <Button onClick={() => setEditing({ menu_type: filterMenu, category_id: catsFor(filterMenu)[0]?.id, price: 0, addon_group_ids: [], is_active: true })}
               data-testid="new-product-btn"
               className="bg-brand hover:bg-brand-hover text-cream rounded-none uppercase text-xs tracking-widest"><Plus size={14} className="mr-1"/> Nouveau produit</Button>
+            <Button onClick={() => setShowNewTag(true)} data-testid="new-tag-btn"
+              variant="outline" className="rounded-none border-brand text-brand hover:bg-brand hover:text-cream uppercase text-xs tracking-widest">
+              <Plus size={14} className="mr-1"/> Nouvelle étiquette
+            </Button>
           </div>
 
           <div className="grid md:grid-cols-2 gap-4 mb-5">
@@ -688,14 +681,17 @@ function MenuTab() {
               }} data-testid="bulk-tag-apply" className="rounded-none bg-ink text-cream uppercase text-xs tracking-widest h-9">
                 Appliquer
               </Button>
-              <Button size="sm" onClick={async () => {
-                if (!confirm(`Supprimer ${selectedIds.size} produit(s) ?`)) return;
-                try {
-                  await Promise.all([...selectedIds].map((id) => api.delete(`/products/${id}`)));
-                  toast.success(`${selectedIds.size} produit(s) supprimé(s)`);
-                  setSelectedIds(new Set()); load();
-                } catch (e) { toast.error("Erreur"); }
-              }} data-testid="bulk-delete-selected" className="rounded-none bg-destructive text-cream uppercase text-xs tracking-widest h-9">
+              <Button size="sm" onClick={() => setDeleteConfirm({
+                kind: "bulk",
+                count: selectedIds.size,
+                onConfirm: async () => {
+                  try {
+                    await Promise.all([...selectedIds].map((id) => api.delete(`/products/${id}`)));
+                    toast.success(`${selectedIds.size} produit(s) supprimé(s)`);
+                    setSelectedIds(new Set()); setDeleteConfirm(null); load();
+                  } catch (e) { toast.error("Erreur"); }
+                },
+              })} data-testid="bulk-delete-selected" className="rounded-none bg-destructive text-cream uppercase text-xs tracking-widest h-9">
                 <Trash2 size={12} className="mr-1"/> Supprimer
               </Button>
               <Button size="sm" variant="outline" onClick={() => setSelectedIds(new Set())} data-testid="bulk-clear"
@@ -730,7 +726,7 @@ function MenuTab() {
                   {p.out_of_stock_until && <p className="text-xs text-red-700">Rupture jusqu&apos;au {p.out_of_stock_until}</p>}
                   <div className="flex gap-1 mt-2 flex-wrap">
                     <Button size="sm" onClick={() => setEditing(p)} className="rounded-none h-7 px-2 text-xs bg-ink text-cream"><Pencil size={12}/></Button>
-                    <Button size="sm" variant="outline" onClick={() => del(p)} className="rounded-none h-7 px-2 border-ink/20"><Trash2 size={12}/></Button>
+                    <Button size="sm" variant="outline" onClick={() => del(p)} data-testid={`product-delete-${p.id}`} className="rounded-none h-7 px-2 border-ink/20"><Trash2 size={12}/></Button>
                     {[1,2,3,7].map((d) => (
                       <Button key={d} size="sm" variant="outline" onClick={() => setOOS(p, d)} className="rounded-none h-7 px-2 text-xs border-ink/20">OOS {d}j</Button>
                     ))}
@@ -744,6 +740,23 @@ function MenuTab() {
           {editing && <ProductEditor product={editing} cats={cats} groups={groups} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
           {showUpload && <BulkUploadDialog defaultMenu={filterMenu} cats={cats} onClose={() => setShowUpload(false)} onDone={() => { setShowUpload(false); load(); }} />}
           {showCsv && <CsvImportDialog defaultMenu={filterMenu} cats={cats} onClose={() => setShowCsv(false)} onDone={() => { setShowCsv(false); load(); }} />}
+          {showNewTag && (
+            <NewTagDialog
+              products={products}
+              defaultMenu={filterMenu}
+              onClose={() => setShowNewTag(false)}
+              onDone={() => { setShowNewTag(false); setRefreshKey((k) => k + 1); load(); }}
+            />
+          )}
+          {deleteConfirm && (
+            <ConfirmDeleteDialog
+              kind={deleteConfirm.kind}
+              target={deleteConfirm.target}
+              count={deleteConfirm.count}
+              onConfirm={deleteConfirm.onConfirm}
+              onCancel={() => setDeleteConfirm(null)}
+            />
+          )}
         </>
       )}
 
@@ -759,6 +772,135 @@ function MenuTab() {
 
 // =========== TAG-BASED OUT-OF-STOCK PANEL ===========
 // =========== QUICK ADD TAG PANEL — 1-click add existing OR create-new tag to selected products ===========
+// =========== CONFIRM DELETE DIALOG ===========
+function ConfirmDeleteDialog({ kind, target, count, onConfirm, onCancel }) {
+  const isSingle = kind === "single";
+  const [busy, setBusy] = useState(false);
+  const doIt = async () => { setBusy(true); try { await onConfirm(); } finally { setBusy(false); } };
+  return (
+    <Dialog open onOpenChange={(v) => !v && onCancel()}>
+      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md !bg-cream border-2 border-destructive rounded-none p-6" data-testid="confirm-delete-dialog">
+        <DialogTitle className="font-display text-2xl text-destructive mb-2">
+          {isSingle ? "Supprimer ce produit ?" : `Supprimer ${count} produit(s) ?`}
+        </DialogTitle>
+        <p className="text-sm text-muted2 mb-6">
+          {isSingle
+            ? <>Le produit <strong>« {target?.name} »</strong> sera définitivement supprimé. Cette action est irréversible.</>
+            : <>Les <strong>{count} produits sélectionnés</strong> seront définitivement supprimés. Cette action est irréversible.</>}
+        </p>
+        <div className="flex flex-col-reverse sm:flex-row gap-2">
+          <Button onClick={onCancel} variant="outline" data-testid="confirm-delete-cancel"
+            className="flex-1 rounded-none border-ink/20 uppercase text-xs tracking-widest h-11">
+            Annuler
+          </Button>
+          <Button onClick={doIt} disabled={busy} data-testid="confirm-delete-yes"
+            className="flex-1 rounded-none bg-destructive text-cream uppercase text-xs tracking-widest h-11 hover:bg-destructive/90">
+            {busy ? "Suppression…" : "Oui, supprimer"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+// =========== NEW TAG DIALOG (create a tag + apply to picked products) ===========
+function NewTagDialog({ products, defaultMenu, onClose, onDone }) {
+  const [tag, setTag] = useState("");
+  const [picked, setPicked] = useState(new Set());
+  const [search, setSearch] = useState("");
+  const [menuFilter, setMenuFilter] = useState(defaultMenu || "all");
+  const [busy, setBusy] = useState(false);
+
+  const visible = products.filter((p) => {
+    if (menuFilter !== "all" && p.menu_type !== menuFilter) return false;
+    if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const toggle = (id) => setPicked((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const submit = async () => {
+    const clean = tag.trim().toLowerCase();
+    if (!clean) { toast.error("Nom d'étiquette requis"); return; }
+    if (picked.size === 0) { toast.error("Sélectionnez au moins un produit"); return; }
+    setBusy(true);
+    try {
+      await Promise.all([...picked].map((id) => {
+        const p = products.find((x) => x.id === id);
+        if (!p) return null;
+        const tags = Array.from(new Set([...(p.tags || []), clean]));
+        return api.put(`/products/${id}`, { ...p, tags });
+      }));
+      toast.success(`Étiquette « ${clean} » créée et ajoutée à ${picked.size} produit(s)`);
+      onDone();
+    } catch (e) {
+      toast.error("Erreur");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-2xl !bg-cream border-ink/10 rounded-none p-0 flex flex-col max-h-[90vh]" data-testid="new-tag-dialog">
+        <DialogTitle className="sr-only">Nouvelle étiquette</DialogTitle>
+        <div className="p-6 border-b border-ink/10">
+          <p className="text-[10px] tracking-[.3em] uppercase text-brand mb-1">Nouvelle étiquette produit</p>
+          <h3 className="font-display text-2xl mb-4">Créez et appliquez une étiquette</h3>
+          <Input value={tag} onChange={(e) => setTag(e.target.value)} data-testid="new-tag-input"
+            placeholder="ex : jambon, sans gluten, épicé…"
+            className="rounded-none bg-transparent border-ink/20 h-11" />
+        </div>
+        <div className="p-6 border-b border-ink/10">
+          <div className="flex flex-wrap gap-2 mb-3">
+            <p className="text-xs tracking-widest uppercase text-muted2 mr-auto self-center">Appliquer aux produits</p>
+            <select value={menuFilter} onChange={(e) => setMenuFilter(e.target.value)}
+              className="border border-ink/20 bg-transparent px-2 py-1.5 text-sm">
+              <option value="all">Tous</option>
+              <option value="restaurant">Restaurant</option>
+              <option value="epicerie">Épicerie</option>
+            </select>
+            <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)}
+              className="max-w-[160px] rounded-none bg-transparent border-ink/20 h-9" />
+          </div>
+        </div>
+        <div className="overflow-y-auto flex-1 p-6 pt-3 space-y-1" data-testid="new-tag-product-list">
+          {visible.length === 0 && <p className="text-sm text-muted2">Aucun produit.</p>}
+          {visible.map((p) => (
+            <label key={p.id} className={`flex items-center gap-3 p-2 border cursor-pointer ${picked.has(p.id) ? "border-brand bg-brand/5" : "border-transparent hover:bg-ink/5"}`}>
+              <input type="checkbox" checked={picked.has(p.id)} onChange={() => toggle(p.id)}
+                data-testid={`new-tag-pick-${p.id}`}
+                className="accent-brand"/>
+              <span className="text-[10px] tracking-widest uppercase text-muted2 w-20">{p.menu_type === "epicerie" ? "Épicerie" : "Resto"}</span>
+              <span className="flex-1 truncate">{p.name}</span>
+              {(p.tags || []).length > 0 && (
+                <span className="text-[10px] text-muted2 truncate">{(p.tags || []).join(", ")}</span>
+              )}
+            </label>
+          ))}
+        </div>
+        <div className="p-6 border-t border-ink/10 flex flex-col-reverse sm:flex-row gap-2">
+          <Button onClick={onClose} variant="outline" data-testid="new-tag-cancel"
+            className="rounded-none border-ink/20 uppercase text-xs tracking-widest h-11 sm:min-w-32">
+            Annuler
+          </Button>
+          <div className="flex-1 text-sm text-muted2 self-center sm:text-right hidden sm:block">
+            {picked.size > 0 ? `${picked.size} produit(s) sélectionné(s)` : "Sélectionnez au moins un produit"}
+          </div>
+          <Button onClick={submit} disabled={busy || !tag.trim() || picked.size === 0} data-testid="new-tag-submit"
+            className="rounded-none bg-brand hover:bg-brand-hover text-cream uppercase text-xs tracking-widest h-11 sm:min-w-40">
+            {busy ? "…" : "Créer & appliquer"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
 function QuickTagPanel({ products, selectedIds, refreshKey, onApplied }) {
   const [existingTags, setExistingTags] = useState([]);
   const [newTag, setNewTag] = useState("");
