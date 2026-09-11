@@ -135,6 +135,7 @@ class OrderCreate(BaseModel):
     customer: OrderCustomer
     items: List[OrderItem]
     promo_code: Optional[str] = None
+    payment_method: str = "onsite"  # onsite | online
 
 
 class ReservationCreate(BaseModel):
@@ -777,6 +778,7 @@ async def create_order(order_in: OrderCreate):
                 )
 
     totals = await _calc_totals(order_in)
+    is_online = order_in.payment_method == "online"
     order = {
         "id": str(uuid.uuid4()),
         "order_number": gen_order_number(),
@@ -787,12 +789,56 @@ async def create_order(order_in: OrderCreate):
         "customer": order_in.customer.model_dump(),
         "items": [it.model_dump() for it in order_in.items],
         **totals,
-        "status": "new",  # new | preparing | ready | handed | done
+        # For online payments we start in pending_payment; the Payrexx webhook flips it to "new".
+        "status": "pending_payment" if is_online else "new",
+        "payment_method": order_in.payment_method,
+        "payment_status": "pending" if is_online else "onsite",
         "deleted": False,
         "created_at": now_iso(),
     }
     await db.orders.insert_one(order.copy())
 
+    # If online payment: create Payrexx gateway, return the checkout URL. NO emails/Pushover yet.
+    if is_online:
+        try:
+            from payrexx import create_gateway
+            public = os.environ.get("PUBLIC_SITE_URL", "").rstrip("/")
+            gw = await create_gateway(
+                amount_chf=float(order["total"]),
+                reference_id=order["order_number"],
+                success_url=f"{public}/suivi/{order['id']}?paid=1",
+                failed_url=f"{public}/suivi/{order['id']}?paid=failed",
+                cancel_url=f"{public}/checkout/{order['menu_type']}",
+                webhook_url=f"{public}/api/webhooks/payrexx",
+                customer_email=order_in.customer.email or "",
+                customer_firstname=order_in.customer.first_name or "",
+                customer_lastname=order_in.customer.last_name or "",
+                purpose=f"Angelucci's · Commande #{order['order_number']}",
+            )
+            await db.orders.update_one(
+                {"id": order["id"]},
+                {"$set": {"payrexx_gateway_id": gw["id"], "payrexx_hash": gw["hash"]}},
+            )
+            return {
+                "id": order["id"],
+                "order_number": order["order_number"],
+                "total": order["total"],
+                "payment_url": gw["link"],
+                "payment_status": "pending",
+            }
+        except Exception as e:
+            # Rollback: delete the pending order so the client can retry
+            await db.orders.delete_one({"id": order["id"]})
+            logger.error(f"Payrexx failure — order rolled back: {e}")
+            raise HTTPException(502, f"Paiement en ligne indisponible : {e}")
+
+    # Onsite payment — normal flow (emails + Pushover EMERGENCY)
+    await _notify_new_order(order, order_in)
+    return {"id": order["id"], "order_number": order["order_number"], "total": order["total"]}
+
+
+async def _notify_new_order(order: dict, order_in: OrderCreate):
+    """Send emails + Pushover for a confirmed new order (onsite paid OR online paid)."""
     # Marketing opt-in
     if order_in.customer.marketing_opt_in:
         await db.marketing_emails.update_one(
@@ -811,7 +857,7 @@ async def create_order(order_in: OrderCreate):
             upsert=True,
         )
 
-    # Send emails (best-effort, non-blocking-ish)
+    # Send emails (best-effort)
     try:
         await send_order_confirmation(order)
         await send_new_order_notification(order)
@@ -824,8 +870,9 @@ async def create_order(order_in: OrderCreate):
         pu_user = os.environ.get("PUSHOVER_USER_KEY")
         if pu_token and pu_user:
             menu_label = "RESTAURANT" if order.get("menu_type") == "restaurant" else "ÉPICERIE"
+            pay_label = "PAYÉ EN LIGNE" if order.get("payment_status") == "paid" else "À payer sur place"
             body = (
-                f"{menu_label} · Commande #{order['order_number']}\n"
+                f"{menu_label} · Commande #{order['order_number']} · {pay_label}\n"
                 f"{order['customer']['first_name']} {order['customer']['last_name']} · {order['customer']['phone']}\n"
                 f"Créneau : {order['pickup_time_label']}\n"
                 f"Total : CHF {order['total']:.2f}"
@@ -840,7 +887,59 @@ async def create_order(order_in: OrderCreate):
     except Exception as e:
         logger.error(f"Pushover failure: {e}")
 
-    return {"id": order["id"], "order_number": order["order_number"], "total": order["total"]}
+
+@api.post("/webhooks/payrexx")
+async def payrexx_webhook(request: Request):
+    """Payrexx posts here on every transaction event. When a gateway becomes 'confirmed',
+    we flip the pending order to 'new' and trigger the normal notification pipeline."""
+    try:
+        form = await request.form()
+        payload = {k: v for k, v in form.items()}
+    except Exception:
+        payload = {}
+    tx = {}
+    try:
+        # Payrexx nests fields like transaction[uuid], transaction[status], transaction[referenceId]
+        for k, v in payload.items():
+            if k.startswith("transaction["):
+                inner = k[len("transaction["):-1]
+                tx[inner] = v
+    except Exception:
+        pass
+
+    ref = tx.get("referenceId") or payload.get("referenceId")
+    tx_status = (tx.get("status") or "").lower()
+    logger.info(f"Payrexx webhook: ref={ref} status={tx_status}")
+
+    if not ref:
+        return {"ok": True, "ignored": "no referenceId"}
+    order = await db.orders.find_one({"order_number": ref}, {"_id": 0})
+    if not order:
+        return {"ok": True, "ignored": "order not found"}
+
+    # Payrexx statuses: waiting | confirmed | authorized | reserved | refunded | error | cancelled | declined
+    if tx_status in ("confirmed", "authorized", "reserved"):
+        if order.get("status") == "pending_payment":
+            await db.orders.update_one(
+                {"id": order["id"]},
+                {"$set": {"status": "new", "payment_status": "paid", "payrexx_tx_status": tx_status}},
+            )
+            # Reload to get fresh state, rebuild OrderCreate-like for _notify_new_order
+            fresh = await db.orders.find_one({"id": order["id"]}, {"_id": 0})
+            # Reconstruct OrderCreate minimal for marketing opt-in path
+            oc = OrderCreate(
+                menu_type=fresh["menu_type"], fulfillment_type=fresh["fulfillment_type"],
+                pickup_time=fresh["pickup_time"], customer=OrderCustomer(**fresh["customer"]),
+                items=[OrderItem(**it) for it in fresh["items"]], payment_method="online",
+            )
+            await _notify_new_order(fresh, oc)
+    elif tx_status in ("cancelled", "declined", "error", "refunded"):
+        # Mark as rejected so it disappears from active pipeline
+        await db.orders.update_one(
+            {"id": order["id"], "status": "pending_payment"},
+            {"$set": {"status": "rejected", "payment_status": tx_status, "payrexx_tx_status": tx_status}},
+        )
+    return {"ok": True, "ref": ref, "status": tx_status}
 
 
 @api.get("/orders/{order_id}")
@@ -853,7 +952,7 @@ async def get_order(order_id: str):
 
 @api.get("/admin/orders")
 async def list_orders_admin(status: Optional[str] = None, user: dict = Depends(get_current_user)):
-    q = {"deleted": {"$ne": True}}
+    q = {"deleted": {"$ne": True}, "status": {"$ne": "pending_payment"}}
     if status:
         q["status"] = status
     return await db.orders.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)

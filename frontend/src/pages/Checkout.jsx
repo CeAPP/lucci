@@ -24,6 +24,7 @@ export default function Checkout() {
   const [schedule, setSchedule] = useState(null);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("onsite"); // "onsite" | "online"
   const [form, setForm] = useState({
     first_name: "", last_name: "", phone: "", email: "",
     marketing_opt_in: false, promo_code: "",
@@ -72,12 +73,19 @@ export default function Checkout() {
         },
         items: items.map(({ _uid, ...rest }) => rest),
         promo_code: form.promo_code || null,
+        payment_method: paymentMethod,
       };
       const { data } = await api.post("/orders", payload);
       setSubmitted(true); // suppress the "empty cart" redirect that would otherwise fire when clearCart runs
       clearCart(menuType);
+      // Online payment: redirect to Payrexx hosted checkout
+      if (data.payment_url) {
+        toast.success("Redirection vers le paiement…");
+        window.location.href = data.payment_url;
+        return;
+      }
       toast.success(`Commande #${data.order_number} confirmée`);
-      // Immediate hard redirect to tracking page (replace history so back button doesn't go to checkout)
+      // Onsite: hard redirect to tracking page
       nav(`/suivi/${data.id}`, { replace: true });
     } catch (e) {
       setError(e.response?.data?.detail || "Erreur lors de la commande");
@@ -195,12 +203,22 @@ export default function Checkout() {
           </label>
         </div>
 
-        {/* Payment info */}
-        <div className="bg-amber-50 border border-amber-500/40 p-4 flex gap-3 mb-6">
-          <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-sm">
-            <p className="font-medium mb-0.5">Paiement sur place uniquement</p>
-            <p className="text-muted2">Twint, cash ou carte à la remise.</p>
+        {/* Payment method — client picks Payrexx online OR onsite */}
+        <div className="mb-6">
+          <p className="text-xs tracking-[.3em] uppercase text-brand mb-3">Mode de paiement</p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <button type="button" data-testid="payment-onsite"
+              onClick={() => setPaymentMethod("onsite")}
+              className={`border p-4 text-left ${paymentMethod === "onsite" ? "border-brand bg-brand/10 ring-2 ring-brand/40" : "border-ink/20 hover:border-brand"}`}>
+              <p className="font-medium mb-1">Paiement sur place</p>
+              <p className="text-xs text-muted2">Twint, cash ou carte à la remise.</p>
+            </button>
+            <button type="button" data-testid="payment-online"
+              onClick={() => setPaymentMethod("online")}
+              className={`border p-4 text-left ${paymentMethod === "online" ? "border-brand bg-brand/10 ring-2 ring-brand/40" : "border-ink/20 hover:border-brand"}`}>
+              <p className="font-medium mb-1">Payer maintenant en ligne</p>
+              <p className="text-xs text-muted2">Twint, CB, Apple Pay, Google Pay — via Payrexx.</p>
+            </button>
           </div>
         </div>
 
@@ -215,7 +233,9 @@ export default function Checkout() {
           {loading ? "Envoi…" : (
             <>
               <CheckCircle2 size={18} strokeWidth={1.5} className="mr-2" />
-              Confirmer la commande · {CHF(subtotal)}
+              {paymentMethod === "online"
+                ? <>Payer maintenant · {CHF(subtotal)}</>
+                : <>Confirmer la commande · {CHF(subtotal)}</>}
             </>
           )}
         </Button>

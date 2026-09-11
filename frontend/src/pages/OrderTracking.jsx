@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import api, { CHF } from "@/lib/api";
 import PageTransition from "@/components/PageTransition";
 import { CheckCircle2, Clock, Phone, ArrowLeft } from "lucide-react";
@@ -11,13 +11,16 @@ const STATUS_MAP = {
   ready: { label: "Prêt", step: 3 },
   done: { label: "Terminé", step: 4 },
   rejected: { label: "Refusée", step: 0 },
+  pending_payment: { label: "Paiement en cours", step: 0 },
 };
 
 export default function OrderTracking() {
   const { id } = useParams();
+  const [params] = useSearchParams();
   const [order, setOrder] = useState(null);
   const [settings, setSettings] = useState({});
   const [now, setNow] = useState(Date.now());
+  const paidFlag = params.get("paid"); // "1" | "failed" | null
   useEffect(() => {
     const load = () => api.get(`/orders/${id}`).then((r) => setOrder(r.data)).catch(() => {});
     load();
@@ -62,6 +65,22 @@ export default function OrderTracking() {
             ? "Nous n'avons pas pu accepter cette commande. Pour en savoir plus, appelez-nous."
             : "Cette page se met à jour automatiquement — pas besoin de la rafraîchir."}
         </p>
+
+        {(paidFlag === "1" || order.payment_status === "paid") && (
+          <div className="mb-8 border-2 border-brand bg-brand/10 p-4 flex items-center gap-3" data-testid="paid-banner">
+            <CheckCircle2 size={22} className="text-brand shrink-0" />
+            <div>
+              <p className="font-display text-xl text-brand">Paiement reçu · Merci !</p>
+              <p className="text-xs text-muted2">Le restaurant a été notifié, votre commande est en cours de traitement.</p>
+            </div>
+          </div>
+        )}
+        {paidFlag === "failed" && (
+          <div className="mb-8 border-2 border-destructive bg-destructive/10 p-4" data-testid="paid-failed-banner">
+            <p className="font-display text-lg text-destructive">Paiement échoué</p>
+            <p className="text-sm text-muted2">Le paiement n&apos;a pas abouti. Vous pouvez réessayer ou appeler le restaurant.</p>
+          </div>
+        )}
 
         {/* Contact & 2-min notice (top) */}
         <div className="border border-ink/10 bg-cream p-4 mb-8 flex flex-col sm:flex-row sm:items-center gap-3" data-testid="contact-banner">
