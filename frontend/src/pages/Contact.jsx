@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import PageTransition from "@/components/PageTransition";
 import { MapPin, Phone, Mail, Clock } from "lucide-react";
 import api from "@/lib/api";
+import useContent from "@/lib/useContent";
 
 const DAYS = [["mon","Lundi"],["tue","Mardi"],["wed","Mercredi"],["thu","Jeudi"],["fri","Vendredi"],["sat","Samedi"],["sun","Dimanche"]];
 
 export default function Contact() {
   const [s, setS] = useState({});
   const [sched, setSched] = useState(null);
+  const { t } = useContent("contact");
   useEffect(() => {
     api.get("/settings").then((r) => setS(r.data)).catch(() => {});
     api.get("/schedule/restaurant").then((r) => setSched(r.data)).catch(() => {});
@@ -15,8 +17,14 @@ export default function Contact() {
   return (
     <PageTransition>
       <section className="pt-40 pb-24 max-w-5xl mx-auto px-6 md:px-10">
-        <p className="text-xs tracking-[.4em] uppercase text-brand mb-6">Nous trouver</p>
-        <h1 className="font-display text-5xl md:text-7xl mb-16">Contact</h1>
+        <p className="text-xs tracking-[.4em] uppercase text-brand mb-6">{t("eyebrow", "Nous trouver")}</p>
+        <h1 className="font-display text-5xl md:text-7xl mb-6">{t("title", "Contact")}</h1>
+        {t("intro", "") && (
+          <p className="text-lg text-muted2 mb-10 max-w-2xl whitespace-pre-line">{t("intro")}</p>
+        )}
+        {t("image", "") && (
+          <img src={t("image")} alt="" className="w-full aspect-[16/7] object-cover mb-10" />
+        )}
         <div className="grid md:grid-cols-2 gap-16 mb-16">
           <div className="space-y-8">
             <div>

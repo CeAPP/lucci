@@ -11,6 +11,7 @@ import { motion } from "framer-motion";
 import { CheckCircle2, Users, Clock } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import useContent from "@/lib/useContent";
 
 const TIMES = (() => {
   const arr = [];
@@ -27,6 +28,7 @@ const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
 export default function Reservation() {
   const [schedule, setSchedule] = useState(null);
+  const { t } = useContent("reservation");
   const [selDate, setSelDate] = useState(null);
   const [selTime, setSelTime] = useState("");
   const [people, setPeople] = useState(2);
@@ -98,9 +100,12 @@ export default function Reservation() {
   return (
     <PageTransition>
       <section className="pt-32 pb-24 max-w-6xl mx-auto px-6 md:px-10">
-        <p className="text-xs tracking-[.4em] uppercase text-brand mb-4">Réservation</p>
-        <h1 className="font-display text-5xl md:text-6xl mb-4">Réserver une table</h1>
-        <p className="text-muted2 mb-12 max-w-2xl">Confirmation immédiate. Nous vous accueillerons avec plaisir.</p>
+        <p className="text-xs tracking-[.4em] uppercase text-brand mb-4">{t("eyebrow", "Réservation")}</p>
+        <h1 className="font-display text-5xl md:text-6xl mb-4">{t("title", "Réserver une table")}</h1>
+        <p className="text-muted2 mb-12 max-w-2xl whitespace-pre-line">{t("intro", "Confirmation immédiate. Nous vous accueillerons avec plaisir.")}</p>
+        {t("image", "") && (
+          <img src={t("image")} alt="" className="w-full aspect-[16/6] object-cover mb-10" />
+        )}
 
         <div className="grid lg:grid-cols-2 gap-12">
           {/* Left — calendar & time */}

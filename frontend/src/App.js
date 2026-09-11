@@ -13,6 +13,7 @@ import Cart from "@/pages/Cart";
 import Checkout from "@/pages/Checkout";
 import AdminDashboard, { AdminLogin } from "@/pages/Admin";
 import { CartProvider } from "@/context/CartContext";
+import ThemeProvider from "@/lib/ThemeProvider";
 import { TEMP_MODE } from "@/config";
 import "@/index.css";
 
@@ -62,11 +63,13 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <CartProvider>
-      <BrowserRouter>
-        <AppRoutes />
-        <Toaster position="top-right" richColors closeButton theme="light" />
-      </BrowserRouter>
-    </CartProvider>
+    <ThemeProvider>
+      <CartProvider>
+        <BrowserRouter>
+          <AppRoutes />
+          <Toaster position="top-right" richColors closeButton theme="light" />
+        </BrowserRouter>
+      </CartProvider>
+    </ThemeProvider>
   );
 }

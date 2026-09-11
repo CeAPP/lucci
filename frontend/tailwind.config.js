@@ -10,8 +10,8 @@ module.exports = {
       },
       colors: {
         brand: {
-          DEFAULT: "#7FA6A3",
-          hover: "#6C908F",
+          DEFAULT: "var(--brand, #7FA6A3)",
+          hover: "var(--brand-hover, #6C908F)",
           light: "#A8C4C3",
         },
         terracotta: {

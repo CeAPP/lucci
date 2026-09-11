@@ -177,12 +177,15 @@ class ScheduleUpdate(BaseModel):
 class PromoCode(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     code: str = ""  # empty = auto-apply (no code needed)
-    type: str  # percent | fixed | bogo
+    type: str  # percent | fixed | bogo | category_percent
     value: float
     min_amount: float = 0.0
-    scope: str = "all"  # all | product
+    scope: str = "all"  # all | product | category
     product_id: Optional[str] = None
+    category_id: Optional[str] = None
     active: bool = True
+    starts_at: Optional[str] = None  # ISO date or None
+    ends_at: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
 
 
@@ -224,6 +227,54 @@ async def update_settings(update: SettingsUpdate, user: dict = Depends(get_curre
         await db.settings.update_one({"_id": "settings"}, {"$set": changes})
     s = await db.settings.find_one({"_id": "settings"}, {"_id": 0})
     return s
+
+
+# ==================== CONTENT (CMS) ====================
+# Structure : one document per (page, key). Values are strings (text or image URL).
+# Free-form so pages can add/remove blocks without a migration.
+
+@api.get("/content")
+async def get_content(page: Optional[str] = None):
+    q = {"page": page} if page else {}
+    docs = await db.content_blocks.find(q, {"_id": 0}).to_list(2000)
+    # return as {page: {key: value}}
+    out: dict = {}
+    for d in docs:
+        out.setdefault(d["page"], {})[d["key"]] = d.get("value", "")
+    return out
+
+
+@api.put("/content")
+async def upsert_content(page: str, key: str, value: str, user: dict = Depends(get_current_user)):
+    await db.content_blocks.update_one(
+        {"page": page, "key": key},
+        {"$set": {"page": page, "key": key, "value": value, "updated_at": now_iso()}},
+        upsert=True,
+    )
+    return {"ok": True, "page": page, "key": key, "value": value}
+
+
+# ==================== THEME ====================
+@api.get("/theme")
+async def get_theme():
+    doc = await db.settings.find_one({"_id": "theme"}, {"_id": 0}) or {}
+    # Sensible defaults
+    return {
+        "primary": doc.get("primary", "#7FA9A8"),
+        "font_display": doc.get("font_display", "Cormorant Garamond"),
+        "font_body": doc.get("font_body", "Manrope"),
+    }
+
+
+@api.put("/theme")
+async def update_theme(primary: str = "", font_display: str = "", font_body: str = "", user: dict = Depends(get_current_user)):
+    upd: dict = {}
+    if primary: upd["primary"] = primary
+    if font_display: upd["font_display"] = font_display
+    if font_body: upd["font_body"] = font_body
+    if upd:
+        await db.settings.update_one({"_id": "theme"}, {"$set": upd}, upsert=True)
+    return await get_theme()
 
 
 @api.get("/schedule/{kind}")
@@ -582,14 +633,29 @@ async def _calc_totals(order_in: OrderCreate) -> dict:
     vat_rate = settings.get("vat_takeaway", 0.026)
     subtotal = sum(it.line_total for it in order_in.items)
 
-    def _apply_promo(promo: dict, cart_items: List[OrderItem], sub: float) -> float:
+    def _promo_is_time_valid(pr: dict) -> bool:
+        """Check starts_at/ends_at window (ISO strings). Empty = always."""
+        now = datetime.now(timezone.utc).isoformat()
+        s, e = pr.get("starts_at"), pr.get("ends_at")
+        if s and now < s: return False
+        if e and now > e: return False
+        return True
+
+    async def _cat_ids_in_cart(items: List[OrderItem]) -> dict:
+        pids = list({it.product_id for it in items})
+        prods = await db.products.find({"id": {"$in": pids}}, {"_id": 0, "id": 1, "category_id": 1}).to_list(500)
+        return {p["id"]: p.get("category_id") for p in prods}
+
+    def _apply_promo(promo: dict, cart_items: List[OrderItem], sub: float, pid_to_cat: dict) -> float:
         """Return discount amount for one promo."""
+        if not _promo_is_time_valid(promo):
+            return 0.0
         if sub < promo.get("min_amount", 0):
             return 0.0
         scope = promo.get("scope", "all")
         p_type = promo.get("type")
         val = promo.get("value", 0)
-        # Find target item(s)
+        # Scope == "product"
         if scope == "product":
             pid = promo.get("product_id")
             target = [it for it in cart_items if it.product_id == pid]
@@ -601,14 +667,31 @@ async def _calc_totals(order_in: OrderCreate) -> dict:
             if p_type == "fixed":
                 return min(val, base)
             if p_type == "bogo":
-                # Buy one get one: qty//2 units free per line
                 free_amount = 0.0
                 for it in target:
                     unit = it.line_total / it.quantity if it.quantity else 0
                     free_amount += (it.quantity // 2) * unit
                 return free_amount
             return 0.0
-        # scope == "all"
+        # Scope == "category"
+        if scope == "category":
+            cid = promo.get("category_id")
+            target = [it for it in cart_items if pid_to_cat.get(it.product_id) == cid]
+            base = sum(it.line_total for it in target)
+            if base <= 0:
+                return 0.0
+            if p_type in ("percent", "category_percent"):
+                return base * (val / 100.0)
+            if p_type == "fixed":
+                return min(val, base)
+            if p_type == "bogo":
+                free = 0.0
+                for it in target:
+                    unit = it.line_total / it.quantity if it.quantity else 0
+                    free += (it.quantity // 2) * unit
+                return free
+            return 0.0
+        # Scope == "all"
         if p_type == "percent":
             return sub * (val / 100.0)
         if p_type == "fixed":
@@ -624,13 +707,14 @@ async def _calc_totals(order_in: OrderCreate) -> dict:
 
     discount = 0.0
     promo_used = None
+    pid_to_cat = await _cat_ids_in_cart(order_in.items)
 
     # 1) Apply the best applicable auto-promo (no code required, active)
     auto_promos = await db.promo_codes.find({"code": "", "active": True}, {"_id": 0}).to_list(200)
     best_auto = None
     best_auto_amt = 0.0
     for pr in auto_promos:
-        amt = _apply_promo(pr, order_in.items, subtotal)
+        amt = _apply_promo(pr, order_in.items, subtotal, pid_to_cat)
         if amt > best_auto_amt:
             best_auto_amt = amt
             best_auto = pr
@@ -644,7 +728,7 @@ async def _calc_totals(order_in: OrderCreate) -> dict:
             {"code": order_in.promo_code.upper(), "active": True}, {"_id": 0}
         )
         if promo:
-            amt = _apply_promo(promo, order_in.items, subtotal)
+            amt = _apply_promo(promo, order_in.items, subtotal, pid_to_cat)
             if amt > 0:
                 discount += amt
                 promo_used = promo["code"]

@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { LogOut, Bell, BellOff, Phone, Trash2, ChevronUp, ChevronDown, Plus, Pencil, Volume2, Copy, Download, Upload, X, CheckCircle2 } from "lucide-react";
+import SiteTab from "@/pages/admin/SiteTab";
 
 const LOGO = "https://customer-assets.emergentagent.com/job_pizzeria-app-26/artifacts/jwci5np5_LOgo%20angelucci.png";
 const DAY_LABELS = { mon: "Lundi", tue: "Mardi", wed: "Mercredi", thu: "Jeudi", fri: "Vendredi", sat: "Samedi", sun: "Dimanche" };
@@ -1800,6 +1801,7 @@ function HoursTab() {
 function PromosTab() {
   const [items, setItems] = useState([]);
   const [products, setProducts] = useState([]);
+  const [cats, setCats] = useState([]);
   const [n, setN] = useState({
     code: "",
     type: "percent",
@@ -1807,41 +1809,44 @@ function PromosTab() {
     min_amount: 0,
     scope: "all",
     product_id: null,
+    category_id: null,
+    starts_at: "",
+    ends_at: "",
     active: true,
   });
   const load = async () => {
-    const [pr, pd] = await Promise.all([
+    const [pr, pd, cd] = await Promise.all([
       api.get("/admin/promos"),
       api.get("/products/all"),
+      api.get("/categories"),
     ]);
     setItems(pr.data);
     setProducts(pd.data);
+    setCats(cd.data);
   };
   useEffect(() => { load(); }, []);
   const create = async () => {
-    if (n.scope === "product" && !n.product_id) {
-      toast.error("Choisissez un produit");
-      return;
-    }
-    if (n.type !== "bogo" && (!n.value || n.value <= 0)) {
-      toast.error("Valeur invalide");
-      return;
-    }
+    if (n.scope === "product" && !n.product_id) { toast.error("Choisissez un produit"); return; }
+    if (n.scope === "category" && !n.category_id) { toast.error("Choisissez une catégorie"); return; }
+    if (n.type !== "bogo" && (!n.value || n.value <= 0)) { toast.error("Valeur invalide"); return; }
     const payload = {
       ...n,
       code: (n.code || "").toUpperCase().trim(),
       product_id: n.scope === "product" ? n.product_id : null,
+      category_id: n.scope === "category" ? n.category_id : null,
+      starts_at: n.starts_at ? new Date(n.starts_at).toISOString() : null,
+      ends_at: n.ends_at ? new Date(n.ends_at).toISOString() : null,
     };
     await api.post("/admin/promos", payload);
     toast.success(payload.code ? `Code ${payload.code} créé` : "Promotion auto créée");
-    setN({ code: "", type: "percent", value: 10, min_amount: 0, scope: "all", product_id: null, active: true });
+    setN({ code: "", type: "percent", value: 10, min_amount: 0, scope: "all", product_id: null, category_id: null, starts_at: "", ends_at: "", active: true });
     load();
   };
   const del = async (p) => { if (!confirm("Supprimer cette promotion ?")) return; await api.delete(`/admin/promos/${p.id}`); load(); };
   const toggle = async (p) => { await api.patch(`/admin/promos/${p.id}`, null, { params: { active: !p.active } }); load(); };
 
   const productName = (pid) => products.find((p) => p.id === pid)?.name || "?";
-  const typeLabel = (t) => t === "percent" ? "% remise" : t === "fixed" ? "CHF remise" : "1 acheté = 1 offert";
+  const catName = (cid) => cats.find((c) => c.id === cid)?.name || "?";
 
   return (
     <div>
@@ -1852,18 +1857,24 @@ function PromosTab() {
         {/* Scope */}
         <div className="mb-4">
           <Label className="text-xs tracking-widest uppercase mb-2 block">Portée</Label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <button data-testid="promo-scope-all"
-              onClick={() => setN({ ...n, scope: "all", product_id: null })}
+              onClick={() => setN({ ...n, scope: "all", product_id: null, category_id: null })}
               className={`border p-3 text-left ${n.scope === "all" ? "border-brand bg-brand/10" : "border-ink/20"}`}>
               <p className="text-sm font-medium">Tout le site</p>
-              <p className="text-xs text-muted2">S&apos;applique à toutes les commandes</p>
+              <p className="text-xs text-muted2">Toutes les commandes</p>
+            </button>
+            <button data-testid="promo-scope-category"
+              onClick={() => setN({ ...n, scope: "category" })}
+              className={`border p-3 text-left ${n.scope === "category" ? "border-brand bg-brand/10" : "border-ink/20"}`}>
+              <p className="text-sm font-medium">Une catégorie</p>
+              <p className="text-xs text-muted2">Ex : -20% sur les vins</p>
             </button>
             <button data-testid="promo-scope-product"
               onClick={() => setN({ ...n, scope: "product" })}
               className={`border p-3 text-left ${n.scope === "product" ? "border-brand bg-brand/10" : "border-ink/20"}`}>
-              <p className="text-sm font-medium">Un produit spécifique</p>
-              <p className="text-xs text-muted2">S&apos;applique à un seul produit</p>
+              <p className="text-sm font-medium">Un produit</p>
+              <p className="text-xs text-muted2">Un seul produit</p>
             </button>
           </div>
         </div>
@@ -1881,14 +1892,27 @@ function PromosTab() {
             </select>
           </div>
         )}
+        {n.scope === "category" && (
+          <div className="mb-4">
+            <Label className="text-xs tracking-widest uppercase">Catégorie</Label>
+            <select value={n.category_id || ""} onChange={(e) => setN({ ...n, category_id: e.target.value })}
+              data-testid="promo-category-select"
+              className="w-full border border-ink/20 px-3 py-2 bg-transparent mt-1.5">
+              <option value="">— Choisir une catégorie —</option>
+              {cats.map((c) => (
+                <option key={c.id} value={c.id}>{c.name} · {c.menu_type}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Type */}
         <div className="mb-4">
           <Label className="text-xs tracking-widest uppercase mb-2 block">Type de remise</Label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {[
               { v: "percent", label: "Pourcentage" },
-              { v: "fixed", label: "Montant fixe" },
+              { v: "fixed", label: "Montant fixe (CHF)" },
               { v: "bogo", label: "1 acheté = 1 offert" },
             ].map((t) => (
               <button key={t.v} data-testid={`promo-type-${t.v}`}
@@ -1937,6 +1961,24 @@ function PromosTab() {
           </p>
         </div>
 
+        {/* Time window */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+          <div>
+            <Label className="text-xs tracking-widest uppercase">Actif à partir de (optionnel)</Label>
+            <Input type="datetime-local" value={n.starts_at}
+              onChange={(e) => setN({ ...n, starts_at: e.target.value })}
+              data-testid="promo-starts-at"
+              className="rounded-none bg-transparent border-ink/20 mt-1.5" />
+          </div>
+          <div>
+            <Label className="text-xs tracking-widest uppercase">Actif jusqu&apos;à (optionnel)</Label>
+            <Input type="datetime-local" value={n.ends_at}
+              onChange={(e) => setN({ ...n, ends_at: e.target.value })}
+              data-testid="promo-ends-at"
+              className="rounded-none bg-transparent border-ink/20 mt-1.5" />
+          </div>
+        </div>
+
         <Button onClick={create} data-testid="promo-create-btn"
           className="bg-brand hover:bg-brand-hover text-cream rounded-none uppercase tracking-widest">
           Créer la promotion
@@ -1967,9 +2009,15 @@ function PromosTab() {
                     ? `${p.value}% de remise`
                     : `${CHF(p.value)} de remise`}
                 {" · "}
-                {p.scope === "product" ? `sur ${productName(p.product_id)}` : "sur tout le site"}
+                {p.scope === "product" ? `sur ${productName(p.product_id)}` : p.scope === "category" ? `sur ${catName(p.category_id)}` : "sur tout le site"}
                 {p.min_amount > 0 && ` · dès ${CHF(p.min_amount)} d'achat`}
               </p>
+              {(p.starts_at || p.ends_at) && (
+                <p className="text-[11px] text-muted2 mt-0.5">
+                  {p.starts_at ? `Du ${new Date(p.starts_at).toLocaleDateString("fr-CH")}` : "Toujours actif"}
+                  {p.ends_at ? ` au ${new Date(p.ends_at).toLocaleDateString("fr-CH")}` : ""}
+                </p>
+              )}
             </div>
             <Button size="sm" onClick={() => toggle(p)} className={`rounded-none text-xs uppercase ${p.active ? "bg-ink text-cream" : "bg-emerald-700 text-cream"}`}>
               {p.active ? "Désactiver" : "Activer"}
@@ -2196,6 +2244,7 @@ export default function AdminDashboard() {
               { v: "menu", label: "Menu" },
               { v: "hours", label: "Horaires" },
               { v: "promos", label: "Promotions" },
+              { v: "site", label: "Site" },
               ...(isOwner ? [{ v: "emails", label: "Emails clients" }] : []),
               { v: "accounting", label: "Comptabilité" },
               { v: "settings", label: "Paramètres" },
@@ -2213,6 +2262,7 @@ export default function AdminDashboard() {
             <TabsContent value="menu"><MenuTab /></TabsContent>
             <TabsContent value="hours"><HoursTab /></TabsContent>
             <TabsContent value="promos"><PromosTab /></TabsContent>
+            <TabsContent value="site"><SiteTab /></TabsContent>
             {isOwner && <TabsContent value="emails"><EmailsTab /></TabsContent>}
             <TabsContent value="accounting"><AccountingTab /></TabsContent>
             <TabsContent value="settings"><SettingsTab /></TabsContent>

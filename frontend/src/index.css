@@ -27,7 +27,7 @@
 
 body {
   margin: 0;
-  font-family: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-body, "Manrope"), -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
@@ -35,13 +35,13 @@ body {
 }
 
 .font-display {
-  font-family: "Cormorant Garamond", Georgia, serif;
+  font-family: var(--font-display, "Cormorant Garamond"), Georgia, serif;
   font-weight: 500;
   letter-spacing: -0.01em;
 }
 
 .font-italic-display {
-  font-family: "Cormorant Garamond", Georgia, serif;
+  font-family: var(--font-display, "Cormorant Garamond"), Georgia, serif;
   font-style: italic;
   font-weight: 400;
 }

@@ -4,6 +4,7 @@ import { ArrowRight, MapPin, Phone, UtensilsCrossed, Wheat } from "lucide-react"
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import PageTransition from "@/components/PageTransition";
+import useContent from "@/lib/useContent";
 
 const LOGO = "https://customer-assets.emergentagent.com/job_pizzeria-app-26/artifacts/jwci5np5_LOgo%20angelucci.png";
 const IMG_SALUMI = "https://customer-assets.emergentagent.com/job_pizzeria-app-26/artifacts/2bxoyh8v_83ba60_aaf2ebed5765489092cda7f558fbd580~mv2.webp";
@@ -14,6 +15,7 @@ const fadeUp = { initial: { opacity: 0, y: 30 }, whileInView: { opacity: 1, y: 0
 
 export default function Landing() {
   const [settings, setSettings] = useState({});
+  const { t } = useContent("landing");
   useEffect(() => {
     api.get("/settings").then((r) => setSettings(r.data)).catch(() => {});
   }, []);
@@ -25,7 +27,7 @@ export default function Landing() {
         {/* Desktop-only decorative right side */}
         <div className="hidden lg:block absolute right-0 top-0 bottom-0 w-[52%] bg-cream-surface" />
         <div className="hidden lg:block absolute right-0 top-24 bottom-24 w-[48%] overflow-hidden">
-          <img src={IMG_SALUMI} alt="Salumi artigianali" className="w-full h-full object-cover" />
+          <img src={t("hero_image", IMG_SALUMI)} alt="Salumi artigianali" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-terracotta/15 mix-blend-multiply" />
         </div>
         <div className="hidden lg:block absolute right-[45%] top-1/2 -translate-y-1/2 w-28 h-28 bg-terracotta z-10" />
@@ -39,34 +41,34 @@ export default function Landing() {
 
             <div className="flex items-center gap-4 mb-6 lg:mb-8 justify-center lg:justify-start">
               <span className="w-8 lg:w-12 h-px bg-terracotta" />
-              <p className="text-[10px] lg:text-[11px] tracking-[.35em] lg:tracking-[.4em] uppercase text-terracotta">Farmacia Angelucci</p>
+              <p className="text-[10px] lg:text-[11px] tracking-[.35em] lg:tracking-[.4em] uppercase text-terracotta">{t("hero_eyebrow", "Farmacia Angelucci")}</p>
             </div>
 
             <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
               className="font-display text-5xl sm:text-7xl lg:text-[7.5rem] leading-[.9] mb-4 lg:mb-6 text-ink text-center lg:text-left">
-              Angelucci&apos;s<span className="text-terracotta">.</span>
+              {t("hero_title", "Angelucci's")}<span className="text-terracotta">.</span>
             </motion.h1>
 
             <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.9 }}
               className="font-italic-display text-xl sm:text-3xl text-brand mb-8 lg:mb-10 max-w-xl text-center lg:text-left mx-auto lg:mx-0">
-              la qualità a discapito della quantità
+              {t("hero_subtitle", "la qualità a discapito della quantità")}
             </motion.p>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.9 }}
               className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center lg:justify-start">
               <Link to="/commander" data-testid="hero-cta-order"
                 className="group inline-flex items-center justify-center gap-3 bg-ink hover:bg-terracotta text-cream px-7 py-4 text-[12px] tracking-[.2em] uppercase transition-colors">
-                Commander <ArrowRight size={16} strokeWidth={1.5} className="group-hover:translate-x-1 transition-transform" />
+                {t("hero_cta_order", "Commander")} <ArrowRight size={16} strokeWidth={1.5} className="group-hover:translate-x-1 transition-transform" />
               </Link>
               <Link to="/reserver" data-testid="hero-cta-book"
                 className="inline-flex items-center justify-center gap-3 border border-ink hover:bg-ink hover:text-cream px-7 py-4 text-[12px] tracking-[.2em] uppercase text-ink transition-colors">
-                Réserver une table
+                {t("hero_cta_book", "Réserver une table")}
               </Link>
             </motion.div>
 
             {/* Mobile hero image — clean, below CTAs */}
             <div className="lg:hidden mt-10 relative">
-              <img src={IMG_SALUMI} alt="Salumi artigianali" className="w-full aspect-[4/3] object-cover" />
+              <img src={t("hero_image", IMG_SALUMI)} alt="Salumi artigianali" className="w-full aspect-[4/3] object-cover" />
               <div className="absolute inset-0 bg-terracotta/15 mix-blend-multiply pointer-events-none" />
               <div className="absolute -bottom-3 -right-3 w-16 h-16 bg-terracotta -z-0" />
             </div>
@@ -107,7 +109,7 @@ export default function Landing() {
       <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-16 md:py-24 lg:py-32 grid lg:grid-cols-12 gap-10 lg:gap-12 items-center">
         <motion.div {...fadeUp} className="lg:col-span-5 relative">
           <div className="relative">
-            <img src={IMG_TAGLIATELLE} alt="Pâtes fraîches" className="w-full aspect-[4/5] object-cover" />
+            <img src={t("story_image", IMG_TAGLIATELLE)} alt="Pâtes fraîches" className="w-full aspect-[4/5] object-cover" />
             <div className="absolute inset-0 bg-terracotta/10 mix-blend-multiply pointer-events-none" />
             <div className="absolute -top-4 -left-4 w-20 lg:w-24 h-20 lg:h-24 border-2 border-brand -z-10" />
           </div>
@@ -115,23 +117,20 @@ export default function Landing() {
         <motion.div {...fadeUp} transition={{ delay: 0.15, duration: 0.9 }} className="lg:col-span-7 lg:pl-8">
           <div className="flex items-center gap-4 mb-5 lg:mb-6">
             <span className="w-8 h-px bg-terracotta" />
-            <p className="text-[10px] lg:text-[11px] tracking-[.35em] lg:tracking-[.4em] uppercase text-terracotta">Notre histoire</p>
+            <p className="text-[10px] lg:text-[11px] tracking-[.35em] lg:tracking-[.4em] uppercase text-terracotta">{t("story_eyebrow", "Notre histoire")}</p>
           </div>
           <h2 className="font-display text-3xl sm:text-4xl md:text-5xl mb-6 lg:mb-8 leading-[1.05]">
-            Redécouvrir les saveurs<br/><em className="text-brand not-italic font-italic-display">oubliées</em> d&apos;Italie.
+            {t("story_title_1", "Redécouvrir les saveurs")}<br/><em className="text-brand not-italic font-italic-display">{t("story_title_2", "oubliées")}</em> {t("story_title_3", "d'Italie.")}
           </h2>
-          <p className="text-muted2 leading-relaxed mb-4 lg:mb-5 text-base lg:text-lg">
-            Nous recherchons les petits producteurs qui travaillent dans l&apos;esprit du mouvement
-            <em className="font-italic-display text-ink"> Slow Food® </em>— une nouvelle génération qui retrouve
-            les techniques de production de leurs parents.
+          <p className="text-muted2 leading-relaxed mb-4 lg:mb-5 text-base lg:text-lg whitespace-pre-line">
+            {t("story_p1", "Nous recherchons les petits producteurs qui travaillent dans l'esprit du mouvement Slow Food® — une nouvelle génération qui retrouve les techniques de production de leurs parents.")}
           </p>
-          <p className="text-muted2 leading-relaxed mb-8 lg:mb-10 text-base lg:text-lg">
-            Une partie de nos fromages est encore affinée chez nous.
-            Toutes nos pâtes sont fraîches, faites par nos soins.
+          <p className="text-muted2 leading-relaxed mb-8 lg:mb-10 text-base lg:text-lg whitespace-pre-line">
+            {t("story_p2", "Une partie de nos fromages est encore affinée chez nous. Toutes nos pâtes sont fraîches, faites par nos soins.")}
           </p>
           <Link to="/histoire" data-testid="story-link"
             className="group inline-flex items-center gap-3 text-ink hover:text-terracotta transition-colors text-sm tracking-[.2em] uppercase">
-            Lire la suite
+            {t("story_cta", "Lire la suite")}
             <span className="w-10 h-px bg-current group-hover:w-14 transition-all" />
             <ArrowRight size={16} strokeWidth={1.5} />
           </Link>
@@ -142,8 +141,8 @@ export default function Landing() {
       <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-16 md:py-24 lg:py-32">
         <div className="grid md:grid-cols-2 gap-4">
           {[
-            { to: "/commander", label: "Il Ristorante", tag: "Trattoria", desc: "Cuisine du marché. À emporter ou en livraison.", img: IMG_PASTA_SHORT, icon: UtensilsCrossed, accent: "bg-terracotta" },
-            { to: "/epicerie", label: "L'Épicerie", tag: "Bottega", desc: "Produits d'exception, jusqu'à 1 semaine à l'avance.", img: IMG_SALUMI, icon: Wheat, accent: "bg-brand" },
+            { to: "/commander", label: t("cat_resto_label", "Il Ristorante"), tag: t("cat_resto_tag", "Trattoria"), desc: t("cat_resto_desc", "Cuisine du marché. À emporter ou en livraison."), img: t("cat_resto_image", IMG_PASTA_SHORT), icon: UtensilsCrossed, accent: "bg-terracotta" },
+            { to: "/epicerie", label: t("cat_epi_label", "L'Épicerie"), tag: t("cat_epi_tag", "Bottega"), desc: t("cat_epi_desc", "Produits d'exception, jusqu'à 1 semaine à l'avance."), img: t("cat_epi_image", IMG_SALUMI), icon: Wheat, accent: "bg-brand" },
           ].map((c) => (
             <Link key={c.to} to={c.to} data-testid={`landing-${c.to.replace("/", "")}`}
               className="group relative h-[380px] sm:h-[440px] md:h-[560px] overflow-hidden">
