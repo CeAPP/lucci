@@ -27,13 +27,20 @@ Ce projet peut être déployé chez n'importe quel hébergeur (Hostinger, OVH, I
 | `JWT_SECRET`            | ✅           | Chaîne aléatoire 64 char                       | Secret pour signer les tokens admin      |
 | `ADMIN_USERNAME`        | ✅           | `owner`                                        | Login admin par défaut                   |
 | `ADMIN_PASSWORD`        | ✅           | Mot de passe fort                              | Mdp admin par défaut                     |
-| `RESTAURANT_PHONE`      | 🟠           | `+41 79 706 39 66`                             | Téléphone affiché dans les emails        |
+| `STAFF_USERNAME`        | 🟠           | `staff`                                        | Login staff secondaire                   |
+| `STAFF_PASSWORD`        | 🟠           | Mot de passe fort                              | Mdp staff secondaire                     |
+| `RESTAURANT_PHONE`      | 🟠           | `+41 79 706 39 66`                             | Téléphone affiché dans emails + site     |
+| `RESTAURANT_NAME`       | 🟠           | `Farmacia Angelucci`                           | Nom affiché dans emails                  |
 | `RESTAURANT_ADDRESS`    | 🟠           | `Av. William-Fraisse 1, Lausanne`              | Adresse dans les emails                  |
+| `RESTAURANT_EMAIL`      | 🟠           | `toni@angeluccis.com`                          | Reçoit les notifs "nouvelle commande"    |
 | `PUBLIC_SITE_URL`       | 🟠           | `https://mon-domaine.ch`                       | URL utilisée dans les liens de suivi     |
-| `RESEND_API_KEY`        | ⬜           | `re_...`                                       | Clé Resend pour envoyer les emails       |
-| `RESEND_FROM_EMAIL`     | ⬜           | `no-reply@mon-domaine.ch`                      | Expéditeur des emails                    |
-| `PUSHOVER_USER_KEY`     | ⬜           | Clé user Pushover                              | Notifications push admin                 |
-| `PUSHOVER_API_TOKEN`    | ⬜           | Token application Pushover                     | Notifications push admin                 |
+| `RESEND_API_KEY`        | 🟠           | `re_j577…`                                     | Clé Resend pour envoyer les emails       |
+| `SENDER_EMAIL`          | 🟠           | `Angelucci's <noreply@ton-domaine.ch>`         | Expéditeur des emails (nécessite un domaine vérifié sur resend.com/domains) |
+| `PUSHOVER_USER_KEY`     | 🟠           | Clé user Pushover                              | Notifications push admin                 |
+| `PUSHOVER_API_TOKEN`    | 🟠           | Token application Pushover                     | Notifications push admin                 |
+| `PAYREXX_INSTANCE`      | 🟠           | `farmaciaangelucci`                            | Nom d'instance Payrexx (paiement)        |
+| `PAYREXX_API_SECRET`    | 🟠           | `8XVC…`                                        | API Secret Payrexx (paiement)            |
+| `EMERGENT_LLM_KEY`      | ⬜           | `sk-emergent-…`                                | (non utilisé actuellement)               |
 | `CORS_ORIGINS`          | ⬜           | `*` ou `https://mon-domaine.ch`                | CORS (`*` par défaut, à restreindre en prod) |
 
 ### Frontend (`frontend/.env`)
@@ -196,8 +203,8 @@ mongorestore --uri="$MONGO_URL_NOUVEAU" --archive=angelucci.dump --nsFrom="ancie
 
 ## Aucun changement de code nécessaire
 
-Toutes les URLs, credentials, et intégrations passent uniquement par les variables d'environnement.  
-Le seul fichier qui contient l'URL publique est `frontend/public/index.html` (canonical, OG tags, JSON-LD, sitemap) — **remplace** simplement `pizzeria-app-26.emergent.host` par ton domaine partout dans ce fichier + dans `robots.txt` et `sitemap.xml`.
+Toutes les URLs, credentials, et intégrations (Pushover, Resend, Payrexx, MongoDB) passent uniquement par les variables d'environnement.
+Le seul fichier qui contient l'URL publique en dur est `frontend/public/index.html` (canonical, OG tags, JSON-LD, sitemap) — **remplace** simplement `pizzeria-app-26.emergent.host` par ton domaine partout dans ce fichier + dans `robots.txt` et `sitemap.xml`.
 
 Recherche/remplace global :
 ```bash
@@ -217,6 +224,9 @@ C'est tout — le code React et Python n'a besoin d'aucune modification.
 - [ ] `CORS_ORIGINS` restreint au domaine (pas `*`)
 - [ ] MongoDB accessible uniquement par le backend (pas d'exposition publique)
 - [ ] HTTPS activé (Caddy, Let's Encrypt, Cloudflare…)
-- [ ] `RESEND_API_KEY` renseigné pour recevoir les emails clients
+- [ ] `RESEND_API_KEY` renseigné + domaine vérifié sur `resend.com/domains`
+- [ ] `SENDER_EMAIL` utilise une adresse `@` de ce domaine vérifié
 - [ ] `PUSHOVER_*` renseignés pour les notifications urgentes
-- [ ] Site testé : commande restaurant + épicerie + réservation
+- [ ] `PAYREXX_*` renseignés + au moins un PSP (Twint/CB) activé sur le compte Payrexx
+- [ ] Webhook Payrexx configuré dans le back-office Payrexx : `{PUBLIC_SITE_URL}/api/webhooks/payrexx`
+- [ ] Site testé : commande restaurant + épicerie + réservation + paiement en ligne + réception email
