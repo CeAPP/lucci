@@ -1,0 +1,19 @@
+{
+  "summary": "Verified user-reported fixes: (1) OrderModePicker mobile popup now fits in 390x844 viewport (dialog height 447px, ASAP button + first row of today slots fully visible without scrolling) on both /commander and /epicerie. Desktop 1440x900 also renders normally (dialog 546px). (2) Admin CMS Site tab rewritten with 3 accordion sections on Landing, each with SVG wireframe on the left, dirty-count save button, image thumbnail/placeholder, and public-page preview link. Full CRUD save cycle works. Backend POST /api/orders regression passes (200 with id + order_number).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "SiteTab.jsx: dirtyCount is computed twice (inside save() and in the render). Minor duplication — could be memoized.",
+    "OrderModePicker: futureSlots grid still uses max-h-44 unconditionally; on mobile this may push the dialog beyond viewport when 'Programmer plus tard' is expanded. Not part of primary CTA path but worth considering a max-h-32 sm:max-h-44 for parity with today-slots."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Owner AngelCED26 / CE26$Lucc used successfully.",
+  "seed_data_creation": "None. hero_title was temporarily modified and restored to original empty value.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Login flow: 2 inputs (no type=text), use inputs[0]/inputs[1] to fill. After login, an audio-permission modal appears — dismiss with 'Plus tard' button. On dashboard, click [data-testid=tab-site] to reach the CMS. Landing sections have testids site-section-toggle-landing-{0,1,2}. Save button data-testid=site-save-landing shows '(N)' when dirty.",
+  "rca of the issue": "Both fixes are UI-only and confirmed working via live Playwright checks against the preview URL. Popup fits well under mobile viewport height (447 < 700 target). Site editor renders 3 sections + SVG wireframes + accordion collapse behaviour + dirty-count save + toast + image placeholder as designed."
+}

@@ -5,67 +5,118 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Palette, Type, Upload, Save } from "lucide-react";
+import { Palette, Type, Upload, Save, Image as ImageIcon, ExternalLink } from "lucide-react";
 import api from "@/lib/api";
 import { FONT_DISPLAY_CHOICES, FONT_BODY_CHOICES } from "@/lib/ThemeProvider";
 
-// Config of the CMS blocks per page. `kind`: "text" (single line), "long" (textarea), "image" (URL).
+// PAGES config — blocks grouped by SECTION for a visual, page-mimicking editor.
+// Each block has:
+//   key       : storage key (page.key)
+//   label     : friendly name (short)
+//   kind      : "text" (line) | "long" (paragraph) | "image"
+//   sample    : example value shown as placeholder / hint
 const PAGES = {
   landing: {
     label: "Accueil",
-    blocks: [
-      { key: "hero_eyebrow", label: "Ligne de titre (au-dessus du grand titre)", kind: "text" },
-      { key: "hero_title", label: "Grand titre", kind: "text" },
-      { key: "hero_subtitle", label: "Sous-titre (italique)", kind: "text" },
-      { key: "hero_cta_order", label: "Bouton principal — texte", kind: "text" },
-      { key: "hero_cta_book", label: "Bouton secondaire — texte", kind: "text" },
-      { key: "hero_image", label: "Image principale (hero)", kind: "image" },
-      { key: "story_eyebrow", label: "Section Histoire — surtitre", kind: "text" },
-      { key: "story_title_1", label: "Section Histoire — début du titre", kind: "text" },
-      { key: "story_title_2", label: "Section Histoire — mot en italique", kind: "text" },
-      { key: "story_title_3", label: "Section Histoire — fin du titre", kind: "text" },
-      { key: "story_p1", label: "Section Histoire — 1er paragraphe", kind: "long" },
-      { key: "story_p2", label: "Section Histoire — 2ᵉ paragraphe", kind: "long" },
-      { key: "story_cta", label: "Section Histoire — texte du bouton", kind: "text" },
-      { key: "story_image", label: "Section Histoire — image", kind: "image" },
-      { key: "cat_resto_label", label: "Bloc Ristorante — titre", kind: "text" },
-      { key: "cat_resto_tag", label: "Bloc Ristorante — étiquette", kind: "text" },
-      { key: "cat_resto_desc", label: "Bloc Ristorante — description", kind: "text" },
-      { key: "cat_resto_image", label: "Bloc Ristorante — image", kind: "image" },
-      { key: "cat_epi_label", label: "Bloc Épicerie — titre", kind: "text" },
-      { key: "cat_epi_tag", label: "Bloc Épicerie — étiquette", kind: "text" },
-      { key: "cat_epi_desc", label: "Bloc Épicerie — description", kind: "text" },
-      { key: "cat_epi_image", label: "Bloc Épicerie — image", kind: "image" },
+    publicPath: "/",
+    sections: [
+      {
+        title: "Section 1 · Bandeau d'accueil (hero)",
+        desc: "Le tout premier écran que le client voit en arrivant sur le site.",
+        wireframe: "hero",
+        blocks: [
+          { key: "hero_eyebrow", label: "Ligne au-dessus du titre", kind: "text", sample: "Farmacia Angelucci" },
+          { key: "hero_title", label: "Grand titre", kind: "text", sample: "Angelucci's" },
+          { key: "hero_subtitle", label: "Sous-titre italique", kind: "text", sample: "la qualità a discapito della quantità" },
+          { key: "hero_cta_order", label: "Bouton principal", kind: "text", sample: "Commander" },
+          { key: "hero_cta_book", label: "Bouton secondaire", kind: "text", sample: "Réserver une table" },
+          { key: "hero_image", label: "Image de droite", kind: "image", sample: "" },
+        ],
+      },
+      {
+        title: "Section 2 · Notre histoire",
+        desc: "Bloc « histoire courte » avec image à gauche et texte à droite.",
+        wireframe: "story",
+        blocks: [
+          { key: "story_eyebrow", label: "Surtitre", kind: "text", sample: "Notre histoire" },
+          { key: "story_title_1", label: "Début du titre", kind: "text", sample: "Redécouvrir les saveurs" },
+          { key: "story_title_2", label: "Mot(s) en italique", kind: "text", sample: "oubliées" },
+          { key: "story_title_3", label: "Fin du titre", kind: "text", sample: "d'Italie." },
+          { key: "story_p1", label: "1er paragraphe", kind: "long", sample: "" },
+          { key: "story_p2", label: "2ᵉ paragraphe", kind: "long", sample: "" },
+          { key: "story_cta", label: "Texte du bouton", kind: "text", sample: "Lire la suite" },
+          { key: "story_image", label: "Image de gauche", kind: "image", sample: "" },
+        ],
+      },
+      {
+        title: "Section 3 · Ristorante & Épicerie",
+        desc: "Les 2 grandes cartes qui envoient vers les menus.",
+        wireframe: "cats",
+        blocks: [
+          { key: "cat_resto_label", label: "Ristorante — titre", kind: "text", sample: "Il Ristorante" },
+          { key: "cat_resto_tag", label: "Ristorante — étiquette", kind: "text", sample: "Trattoria" },
+          { key: "cat_resto_desc", label: "Ristorante — description", kind: "text", sample: "Cuisine du marché. À emporter ou en livraison." },
+          { key: "cat_resto_image", label: "Ristorante — image", kind: "image", sample: "" },
+          { key: "cat_epi_label", label: "Épicerie — titre", kind: "text", sample: "L'Épicerie" },
+          { key: "cat_epi_tag", label: "Épicerie — étiquette", kind: "text", sample: "Bottega" },
+          { key: "cat_epi_desc", label: "Épicerie — description", kind: "text", sample: "Produits d'exception, jusqu'à 1 semaine à l'avance." },
+          { key: "cat_epi_image", label: "Épicerie — image", kind: "image", sample: "" },
+        ],
+      },
     ],
   },
   story: {
     label: "Histoire",
-    blocks: [
-      { key: "eyebrow", label: "Surtitre", kind: "text" },
-      { key: "title", label: "Titre", kind: "text" },
-      { key: "image", label: "Image en tête (optionnel)", kind: "image" },
-      { key: "p1", label: "1er paragraphe", kind: "long" },
-      { key: "p2", label: "2ᵉ paragraphe", kind: "long" },
-      { key: "motto_it", label: "Devise (italien)", kind: "text" },
-      { key: "motto_fr", label: "Devise (français)", kind: "text" },
+    publicPath: "/histoire",
+    sections: [
+      {
+        title: "Page Histoire",
+        desc: "Page dédiée à raconter votre histoire, votre philosophie.",
+        wireframe: "textpage",
+        blocks: [
+          { key: "eyebrow", label: "Surtitre", kind: "text", sample: "Notre philosophie" },
+          { key: "title", label: "Titre", kind: "text", sample: "Redécouvrir les saveurs oubliées." },
+          { key: "image", label: "Image en tête (optionnel)", kind: "image", sample: "" },
+          { key: "p1", label: "1er paragraphe", kind: "long", sample: "" },
+          { key: "p2", label: "2ᵉ paragraphe", kind: "long", sample: "" },
+          { key: "motto_it", label: "Devise (italien)", kind: "text", sample: "La qualità a discapito della quantità" },
+          { key: "motto_fr", label: "Devise (français)", kind: "text", sample: "La qualité, de préférence à la quantité." },
+        ],
+      },
     ],
   },
   contact: {
     label: "Contact",
-    blocks: [
-      { key: "eyebrow", label: "Surtitre", kind: "text" },
-      { key: "title", label: "Titre", kind: "text" },
-      { key: "intro", label: "Texte d'introduction (optionnel)", kind: "long" },
-      { key: "image", label: "Image en tête (optionnelle)", kind: "image" },
+    publicPath: "/contact",
+    sections: [
+      {
+        title: "Page Contact",
+        desc: "Adresse, téléphone, horaires sont récupérés depuis les Paramètres — ici tu ajoutes surtitre, titre et un texte d'accroche.",
+        wireframe: "textpage",
+        blocks: [
+          { key: "eyebrow", label: "Surtitre", kind: "text", sample: "Nous trouver" },
+          { key: "title", label: "Titre", kind: "text", sample: "Contact" },
+          { key: "intro", label: "Texte d'introduction (optionnel)", kind: "long", sample: "" },
+          { key: "image", label: "Image en tête (optionnelle)", kind: "image", sample: "" },
+        ],
+      },
     ],
   },
   reservation: {
     label: "Réserver",
-    blocks: [
-      { key: "eyebrow", label: "Surtitre", kind: "text" },
-      { key: "title", label: "Titre", kind: "text" },
-      { key: "intro", label: "Texte d'introduction", kind: "long" },
-      { key: "image", label: "Image en tête (optionnelle)", kind: "image" },
+    publicPath: "/reserver",
+    sections: [
+      {
+        title: "Page Réservation",
+        desc: "Titre et texte d'introduction affichés au-dessus du calendrier de réservation.",
+        wireframe: "textpage",
+        blocks: [
+          { key: "eyebrow", label: "Surtitre", kind: "text", sample: "Réservation" },
+          { key: "title", label: "Titre", kind: "text", sample: "Réserver une table" },
+          { key: "intro", label: "Texte d'introduction", kind: "long", sample: "Confirmation immédiate. Nous vous accueillerons avec plaisir." },
+          { key: "image", label: "Image en tête (optionnelle)", kind: "image", sample: "" },
+        ],
+      },
     ],
   },
 };
@@ -92,7 +143,7 @@ export default function SiteTab() {
       <div className="border border-ink/10 bg-cream-surface/50 p-4 mb-4">
         <p className="text-[10px] tracking-[.3em] uppercase text-brand mb-1">Éditeur du site</p>
         <h3 className="font-display text-2xl">Contenu, images, couleur, polices</h3>
-        <p className="text-sm text-muted2 mt-1">Les changements s&apos;appliquent au site public dès que tu enregistres. Les champs vides gardent les valeurs par défaut du template.</p>
+        <p className="text-sm text-muted2 mt-1">Chaque page est découpée en sections. Repère la zone à modifier grâce au schéma coloré, puis modifie les blocs de cette section. Le vide garde le texte par défaut.</p>
       </div>
 
       <Tabs value={subtab} onValueChange={setSubtab}>
@@ -122,9 +173,10 @@ export default function SiteTab() {
   );
 }
 
-// ---- Page editor ----
+// ---- Page editor with visual sections ----
 function PageEditor({ pageId, config, currentBlocks, onSaved }) {
   const [values, setValues] = useState({});
+  const [openSection, setOpenSection] = useState(0);
   useEffect(() => { setValues(currentBlocks || {}); }, [pageId, currentBlocks]);
 
   const save = async () => {
@@ -142,24 +194,115 @@ function PageEditor({ pageId, config, currentBlocks, onSaved }) {
   };
 
   const setValue = (key, v) => setValues((prev) => ({ ...prev, [key]: v }));
+  const dirtyCount = Object.entries(values).filter(([k, v]) => (currentBlocks[k] || "") !== (v || "")).length;
 
   return (
-    <div className="space-y-5">
-      <div className="flex justify-end sticky top-16 z-10 py-2 bg-cream-surface">
+    <div>
+      {/* Top bar: page name + preview link + save */}
+      <div className="sticky top-16 z-10 -mx-3 sm:-mx-6 px-3 sm:px-6 py-3 bg-cream-surface border-b border-ink/10 flex flex-wrap items-center gap-3 mb-5">
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] tracking-widest uppercase text-muted2">Page en cours d&apos;édition</p>
+          <p className="font-display text-lg truncate">{config.label}</p>
+        </div>
+        <a href={config.publicPath} target="_blank" rel="noopener noreferrer" data-testid={`site-preview-${pageId}`}
+          className="inline-flex items-center gap-1 text-xs uppercase tracking-widest text-brand hover:underline">
+          <ExternalLink size={12}/> Voir la page publique
+        </a>
         <Button onClick={save} data-testid={`site-save-${pageId}`}
+          disabled={dirtyCount === 0}
           className="rounded-none bg-brand hover:bg-brand-hover text-cream uppercase text-xs tracking-widest">
-          <Save size={14} className="mr-1"/> Enregistrer
+          <Save size={14} className="mr-1"/> {dirtyCount > 0 ? `Enregistrer (${dirtyCount})` : "Enregistrer"}
         </Button>
       </div>
-      {config.blocks.map((b) => (
-        <BlockEditor key={b.key} block={b} value={values[b.key] || ""} onChange={(v) => setValue(b.key, v)} pageId={pageId} />
-      ))}
+
+      {/* Sections as accordion cards with a schematic wireframe on the left */}
+      <div className="space-y-4">
+        {config.sections.map((section, si) => {
+          const open = openSection === si;
+          return (
+            <div key={si} className={`border transition-all ${open ? "border-brand" : "border-ink/10"} bg-cream`}>
+              <button onClick={() => setOpenSection(open ? -1 : si)}
+                data-testid={`site-section-toggle-${pageId}-${si}`}
+                className={`w-full flex items-center gap-4 p-3 sm:p-4 text-left transition-all ${open ? "bg-brand/5" : "hover:bg-ink/5"}`}>
+                <SectionWireframe kind={section.wireframe} highlight={open}/>
+                <div className="flex-1 min-w-0">
+                  <p className="font-display text-lg leading-tight">{section.title}</p>
+                  <p className="text-xs text-muted2 hidden sm:block">{section.desc}</p>
+                </div>
+                <div className="text-xs tracking-widest uppercase text-brand">
+                  {section.blocks.length} bloc{section.blocks.length > 1 ? "s" : ""}
+                </div>
+              </button>
+
+              {open && (
+                <div className="border-t border-ink/10 p-3 sm:p-4 space-y-3">
+                  {section.blocks.map((b) => (
+                    <BlockEditor key={b.key} block={b} value={values[b.key] || ""} onChange={(v) => setValue(b.key, v)} pageId={pageId} />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
+// ---- Small SVG wireframe of each section — visual anchor to help admin find where each block lives ----
+function SectionWireframe({ kind, highlight }) {
+  const fg = highlight ? "var(--brand)" : "#333";
+  const bg = highlight ? "var(--brand)" : "#999";
+  const bgLight = highlight ? "rgba(127,169,168,0.12)" : "#f2f2f2";
+  const common = { width: 72, height: 48, viewBox: "0 0 72 48", className: "shrink-0 border border-ink/10" };
+  if (kind === "hero") return (
+    <svg {...common}>
+      <rect x="0" y="0" width="72" height="48" fill={bgLight}/>
+      <rect x="4" y="6" width="20" height="2" fill={bg}/>
+      <rect x="4" y="12" width="34" height="8" fill={fg}/>
+      <rect x="4" y="24" width="22" height="3" fill={bg}/>
+      <rect x="4" y="34" width="14" height="6" fill={fg}/>
+      <rect x="20" y="34" width="14" height="6" fill="none" stroke={fg}/>
+      <rect x="44" y="4" width="24" height="40" fill={bg} opacity="0.4"/>
+    </svg>
+  );
+  if (kind === "story") return (
+    <svg {...common}>
+      <rect x="0" y="0" width="72" height="48" fill={bgLight}/>
+      <rect x="4" y="6" width="26" height="36" fill={bg} opacity="0.5"/>
+      <rect x="34" y="10" width="12" height="2" fill={bg}/>
+      <rect x="34" y="16" width="34" height="6" fill={fg}/>
+      <rect x="34" y="26" width="30" height="2" fill={bg}/>
+      <rect x="34" y="30" width="24" height="2" fill={bg}/>
+      <rect x="34" y="36" width="16" height="4" fill={fg}/>
+    </svg>
+  );
+  if (kind === "cats") return (
+    <svg {...common}>
+      <rect x="0" y="0" width="72" height="48" fill={bgLight}/>
+      <rect x="4" y="6" width="30" height="36" fill={bg} opacity="0.35"/>
+      <rect x="8" y="34" width="14" height="4" fill={fg}/>
+      <rect x="8" y="24" width="20" height="2" fill={bg}/>
+      <rect x="38" y="6" width="30" height="36" fill={bg} opacity="0.55"/>
+      <rect x="42" y="34" width="14" height="4" fill={fg}/>
+      <rect x="42" y="24" width="20" height="2" fill={bg}/>
+    </svg>
+  );
+  // textpage — a full page of text
+  return (
+    <svg {...common}>
+      <rect x="0" y="0" width="72" height="48" fill={bgLight}/>
+      <rect x="6" y="8" width="20" height="2" fill={bg}/>
+      <rect x="6" y="14" width="42" height="6" fill={fg}/>
+      <rect x="6" y="26" width="60" height="2" fill={bg}/>
+      <rect x="6" y="30" width="52" height="2" fill={bg}/>
+      <rect x="6" y="34" width="58" height="2" fill={bg}/>
+      <rect x="6" y="38" width="40" height="2" fill={bg}/>
+    </svg>
+  );
+}
+
 function BlockEditor({ block, value, onChange, pageId }) {
-  const fileRef = useState(null)[0]; // eslint-disable-line no-unused-vars
   const [uploading, setUploading] = useState(false);
   const uploadImage = async (file) => {
     if (!file) return;
@@ -175,43 +318,63 @@ function BlockEditor({ block, value, onChange, pageId }) {
     } finally { setUploading(false); }
   };
   return (
-    <div className="border border-ink/10 bg-cream p-4">
-      <Label className="text-xs tracking-widest uppercase text-muted2">{block.label}</Label>
-      <p className="text-[10px] text-muted2/70 mb-2 font-mono">{pageId}.{block.key}</p>
+    <div className="bg-cream-surface/50 border border-ink/8 p-3">
+      <div className="flex items-baseline justify-between mb-2 gap-3">
+        <Label className="text-sm font-medium">{block.label}</Label>
+        {block.kind === "image" && <span className="text-[10px] uppercase tracking-widest text-brand shrink-0 flex items-center gap-1"><ImageIcon size={10}/> Image</span>}
+      </div>
       {block.kind === "text" && (
         <Input value={value} onChange={(e) => onChange(e.target.value)}
           data-testid={`site-${pageId}-${block.key}`}
-          className="rounded-none bg-transparent border-ink/20" />
+          placeholder={block.sample || "Laisser vide = valeur par défaut"}
+          className="rounded-none bg-cream border-ink/20" />
       )}
       {block.kind === "long" && (
         <Textarea value={value} onChange={(e) => onChange(e.target.value)}
           data-testid={`site-${pageId}-${block.key}`}
-          rows={5} className="rounded-none bg-transparent border-ink/20 font-body" />
+          rows={4}
+          placeholder={block.sample || "Laisser vide = valeur par défaut"}
+          className="rounded-none bg-cream border-ink/20 font-body" />
       )}
       {block.kind === "image" && (
         <div>
-          <div className="flex flex-col sm:flex-row gap-2 items-start">
-            <Input value={value} onChange={(e) => onChange(e.target.value)}
-              placeholder="URL de l'image ou téléverse un fichier →"
-              data-testid={`site-${pageId}-${block.key}`}
-              className="rounded-none bg-transparent border-ink/20 flex-1" />
-            <label className="inline-flex items-center gap-1 px-3 py-2 border border-brand text-brand hover:bg-brand hover:text-cream text-xs tracking-widest uppercase cursor-pointer">
-              <Upload size={12}/> {uploading ? "..." : "Téléverser"}
-              <input type="file" accept="image/*" hidden
-                data-testid={`site-${pageId}-${block.key}-file`}
-                onChange={(e) => uploadImage(e.target.files?.[0])} />
-            </label>
+          <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-start">
+            {value ? (
+              <img src={value} alt="" className="w-full sm:w-32 h-32 object-cover border border-ink/10 shrink-0" />
+            ) : (
+              <div className="w-full sm:w-32 h-32 border border-dashed border-ink/20 bg-cream/50 flex items-center justify-center text-muted2 text-xs shrink-0">
+                Aucune image
+              </div>
+            )}
+            <div className="flex-1 flex flex-col gap-2">
+              <Input value={value} onChange={(e) => onChange(e.target.value)}
+                placeholder="URL de l'image…"
+                data-testid={`site-${pageId}-${block.key}`}
+                className="rounded-none bg-cream border-ink/20" />
+              <div className="flex gap-2">
+                <label className="inline-flex items-center gap-1 px-3 py-2 border border-brand text-brand hover:bg-brand hover:text-cream text-xs tracking-widest uppercase cursor-pointer">
+                  <Upload size={12}/> {uploading ? "..." : "Téléverser un fichier"}
+                  <input type="file" accept="image/*" hidden
+                    data-testid={`site-${pageId}-${block.key}-file`}
+                    onChange={(e) => uploadImage(e.target.files?.[0])} />
+                </label>
+                {value && (
+                  <button onClick={() => onChange("")}
+                    data-testid={`site-${pageId}-${block.key}-clear`}
+                    className="px-3 py-2 border border-ink/20 text-muted2 hover:border-destructive hover:text-destructive text-xs tracking-widest uppercase">
+                    Retirer
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
-          {value && (
-            <img src={value} alt="" className="mt-3 max-h-40 object-cover border border-ink/10" />
-          )}
         </div>
       )}
     </div>
   );
 }
 
-// ---- Theme editor ----
+// ---- Theme editor (unchanged) ----
 function ThemeEditor({ theme, onSaved }) {
   const [primary, setPrimary] = useState(theme.primary);
   const [fontDisplay, setFontDisplay] = useState(theme.font_display);
@@ -223,7 +386,6 @@ function ThemeEditor({ theme, onSaved }) {
       await api.put("/theme", null, { params: { primary, font_display: fontDisplay, font_body: fontBody } });
       toast.success("Thème mis à jour — recharge le site public pour voir tous les changements");
       onSaved && onSaved();
-      // Reload theme immediately in current session
       try { localStorage.removeItem("angel_theme"); } catch { /* empty */ }
       window.location.reload();
     } catch (e) {

@@ -124,21 +124,22 @@ export default function OrderModePicker({ open, onOpenChange, menuType, schedule
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         onOpenAutoFocus={(e) => e.preventDefault()}
-        className="!bg-[#FDFBF7] border-ink/10 rounded-none w-[calc(100vw-1rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto p-0"
+        className="!bg-[#FDFBF7] border-ink/10 rounded-none w-[calc(100vw-1rem)] max-w-md sm:max-w-lg max-h-[calc(100dvh-1rem)] overflow-y-auto p-0"
         data-testid="mode-picker"
       >
-        <div className="p-5 sm:p-7">
-          <DialogTitle className="font-display text-2xl sm:text-3xl mb-1">Votre commande</DialogTitle>
-          <DialogDescription className="text-muted2 text-sm">
+        <div className="p-4 sm:p-7">
+          <DialogTitle className="font-display text-xl sm:text-3xl mb-0.5 sm:mb-1">Votre commande</DialogTitle>
+          <DialogDescription className="text-muted2 text-xs sm:text-sm">
             {isEpicerie ? "À emporter — jusqu'à " + daysAhead + " jours à l'avance." : "À emporter — pour aujourd'hui ou plus tard."}
           </DialogDescription>
 
           {/* Fulfillment info — takeaway only */}
-          <div className="mt-4 border border-brand bg-brand/8 p-3 flex items-center gap-3">
-            <Package size={20} strokeWidth={1.5} className="text-brand shrink-0" />
+          <div className="mt-3 sm:mt-4 border border-brand bg-brand/8 px-2.5 py-2 sm:p-3 flex items-center gap-2.5 sm:gap-3">
+            <Package size={16} strokeWidth={1.5} className="text-brand shrink-0 sm:hidden" />
+            <Package size={20} strokeWidth={1.5} className="text-brand shrink-0 hidden sm:block" />
             <div>
-              <p className="text-[11px] tracking-[.2em] uppercase text-brand">À emporter</p>
-              <p className="text-xs sm:text-sm text-muted2">Retrait — Av. William-Fraisse 1, Lausanne</p>
+              <p className="text-[10px] sm:text-[11px] tracking-[.2em] uppercase text-brand">À emporter</p>
+              <p className="text-[11px] sm:text-sm text-muted2 leading-tight">Retrait — Av. William-Fraisse 1, Lausanne</p>
             </div>
           </div>
 
@@ -146,36 +147,36 @@ export default function OrderModePicker({ open, onOpenChange, menuType, schedule
           <button
             onClick={confirmASAP}
             data-testid="slot-asap"
-            className="mt-5 w-full border-2 border-brand bg-brand hover:bg-brand-hover text-cream p-4 flex items-center justify-between transition-all"
+            className="mt-3 sm:mt-5 w-full border-2 border-brand bg-brand hover:bg-brand-hover text-cream px-3 py-3 sm:p-4 flex items-center justify-between transition-all"
           >
-            <div className="flex items-center gap-3">
-              <Clock size={22} strokeWidth={1.5} />
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <Clock size={20} strokeWidth={1.5} />
               <div className="text-left">
-                <p className="text-[11px] tracking-[.2em] uppercase">Dès que possible</p>
-                <p className="text-xs opacity-90">Prêt en ~{prepMinutes} min</p>
+                <p className="text-[10px] sm:text-[11px] tracking-[.2em] uppercase">Dès que possible</p>
+                <p className="text-[11px] sm:text-xs opacity-90">Prêt en ~{prepMinutes} min</p>
               </div>
             </div>
             <ChevronRight size={18} strokeWidth={1.5} />
           </button>
 
           {/* Today's slots */}
-          <div className="mt-6">
+          <div className="mt-4 sm:mt-6">
             <div className="flex items-baseline gap-3 mb-2">
-              <p className="text-[11px] tracking-[.2em] uppercase text-muted2">Aujourd&apos;hui</p>
+              <p className="text-[10px] sm:text-[11px] tracking-[.2em] uppercase text-muted2">Aujourd&apos;hui</p>
               <span className="text-[10px] text-muted2">tranche de 10 min</span>
             </div>
             {todaySlots.length === 0 ? (
-              <p className="text-sm text-muted2 py-3">
+              <p className="text-xs sm:text-sm text-muted2 py-2 sm:py-3">
                 Aucun créneau disponible aujourd&apos;hui. Utilisez « Programmer plus tard » →
               </p>
             ) : (
-              <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 max-h-40 overflow-y-auto p-0.5">
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 max-h-32 sm:max-h-40 overflow-y-auto p-0.5">
                 {todaySlots.map((t) => (
                   <button
                     key={t}
                     onClick={() => confirmSlot(today, t)}
                     data-testid={`today-time-${t}`}
-                    className="py-2 text-sm tracking-wide border border-ink/15 hover:border-brand hover:bg-brand/8 bg-cream transition-all"
+                    className="py-1.5 sm:py-2 text-xs sm:text-sm tracking-wide border border-ink/15 hover:border-brand hover:bg-brand/8 bg-cream transition-all"
                   >
                     {t}
                   </button>
@@ -185,19 +186,20 @@ export default function OrderModePicker({ open, onOpenChange, menuType, schedule
           </div>
 
           {/* Programmer plus tard */}
-          <div className="mt-6">
+          <div className="mt-4 sm:mt-6">
             <button
               onClick={() => setShowLater((v) => !v)}
               data-testid="btn-later"
-              className={`w-full border p-3 flex items-center justify-between transition-all ${
+              className={`w-full border px-3 py-2.5 sm:p-3 flex items-center justify-between transition-all ${
                 showLater ? "border-ink bg-ink/5" : "border-ink/20 hover:border-brand"
               }`}
             >
-              <div className="flex items-center gap-3">
-                <CalendarDays size={18} strokeWidth={1.5} />
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <CalendarDays size={16} strokeWidth={1.5} className="sm:hidden" />
+                <CalendarDays size={18} strokeWidth={1.5} className="hidden sm:block" />
                 <div className="text-left">
-                  <p className="text-[11px] tracking-[.2em] uppercase">Programmer plus tard</p>
-                  <p className="text-xs text-muted2">
+                  <p className="text-[10px] sm:text-[11px] tracking-[.2em] uppercase">Programmer plus tard</p>
+                  <p className="text-[11px] sm:text-xs text-muted2">
                     {isEpicerie ? `Jusqu'à ${daysAhead} jours` : "Demain"}
                   </p>
                 </div>
