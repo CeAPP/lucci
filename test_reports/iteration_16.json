@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 16 — Verified all requested changes: nav rename to 'Vente à l'emporter', /commander hero copy + no watermark, /epicerie hero copy + no 'Bottega', Landing category card labels, backend continuous schedule (dinner_* empty for all 3 kinds), and POST /api/products/reorder persisting sort_order. Admin order panel loads with numbered items grouped by category and menu-type switching works.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/", "issues": ["On Landing category grid, the épicerie card renders an empty accent pill (top-left) because cat_epi_tag defaults to empty string; the colored bg-brand div is still emitted. Consider hiding the pill when tag is empty."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration_16.py",
+    "/app/test_reports/pytest/iter16.xml"
+  ],
+  "action_items": [
+    "Optional cleanup: on Landing.jsx line ~151, wrap the tag pill in `{c.tag && <div ...>{c.tag}</div>}` so the empty green rectangle doesn't render on the Épicerie card."
+  ],
+  "critical_code_review_comments": [
+    "Menu.jsx isOpenNow() still evaluates dinner_start/dinner_end although they are always empty now — harmless but dead branch; safe to simplify.",
+    "Admin.jsx is 2400+ lines — should be split into per-tab modules for maintainability."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration_16.py"],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "100% (all copy + admin order panel checks passed)"},
+  "test_credentials": "AngelCED26 / CE26$Lucc (owner)",
+  "seed_data_creation": "None (test_reorder used existing products)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All requested changes for this iteration are verified end-to-end. Only cosmetic nit: empty tag pill on Landing épicerie card."
+}
