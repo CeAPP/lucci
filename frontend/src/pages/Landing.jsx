@@ -141,8 +141,8 @@ export default function Landing() {
       <section className="max-w-[1400px] mx-auto px-6 md:px-10 py-16 md:py-24 lg:py-32">
         <div className="grid md:grid-cols-2 gap-4">
           {[
-            { to: "/commander", label: t("cat_resto_label", "Il Ristorante"), tag: t("cat_resto_tag", "Trattoria"), desc: t("cat_resto_desc", "Cuisine du marché. À emporter ou en livraison."), img: t("cat_resto_image", IMG_PASTA_SHORT), icon: UtensilsCrossed, accent: "bg-terracotta" },
-            { to: "/epicerie", label: t("cat_epi_label", "L'Épicerie"), tag: t("cat_epi_tag", "Bottega"), desc: t("cat_epi_desc", "Produits d'exception, jusqu'à 1 semaine à l'avance."), img: t("cat_epi_image", IMG_SALUMI), icon: Wheat, accent: "bg-brand" },
+            { to: "/commander", label: t("cat_resto_label", "Menu"), tag: t("cat_resto_tag", "Trattoria"), desc: t("cat_resto_desc", "Cuisine du marché. À emporter."), img: t("cat_resto_image", IMG_PASTA_SHORT), icon: UtensilsCrossed, accent: "bg-terracotta" },
+            { to: "/epicerie", label: t("cat_epi_label", "Épicerie"), tag: t("cat_epi_tag", ""), desc: t("cat_epi_desc", "Sélection de produits du marché Angelucci, à venir chercher à la Farmacia, moyennant 3 jours d'avance."), img: t("cat_epi_image", IMG_SALUMI), icon: Wheat, accent: "bg-brand" },
           ].map((c) => (
             <Link key={c.to} to={c.to} data-testid={`landing-${c.to.replace("/", "")}`}
               className="group relative h-[380px] sm:h-[440px] md:h-[560px] overflow-hidden">

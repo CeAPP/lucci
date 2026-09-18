@@ -591,14 +591,25 @@ function MenuTab() {
 
   return (
     <div>
-      <div className="flex gap-2 mb-6">
-        {["products", "categories", "addons"].map((s) => (
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {["products", "categories", "order", "addons"].map((s) => (
           <button key={s} onClick={() => setSubtab(s)}
+            data-testid={`menu-subtab-${s}`}
             className={`px-4 py-2 text-xs tracking-widest uppercase border transition-colors ${subtab===s ? "bg-ink text-cream border-ink" : "border-ink/20 hover:border-brand"}`}>
-            {s === "products" ? "Produits" : s === "categories" ? "Catégories" : "Suppléments"}
+            {s === "products" ? "Produits" : s === "categories" ? "Catégories" : s === "order" ? "Ordre d'affichage" : "Suppléments"}
           </button>
         ))}
       </div>
+
+      {subtab === "order" && (
+        <ProductOrderPanel
+          products={products}
+          cats={cats}
+          filterMenu={filterMenu}
+          setFilterMenu={setFilterMenu}
+          onReordered={load}
+        />
+      )}
 
       {subtab === "products" && (
         <>
@@ -898,6 +909,144 @@ function NewTagDialog({ products, defaultMenu, onClose, onDone }) {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+
+// =========== PRODUCT ORDER PANEL — drag-and-drop reorder within each category ===========
+function ProductOrderPanel({ products, cats, filterMenu, setFilterMenu, onReordered }) {
+  // Local ordered lists per category — mirrors DB order, mutated during drag
+  const [local, setLocal] = useState({});
+  const [dragging, setDragging] = useState(null); // { catId, pid, ghost: { x, y } }
+  const [saving, setSaving] = useState(false);
+  const cardRefs = useRef({});
+
+  // Build grouped map on mount / when products change
+  useEffect(() => {
+    const grouped = {};
+    const menuCats = cats.filter((c) => c.menu_type === filterMenu).sort((a, b) => (a.order || 0) - (b.order || 0));
+    menuCats.forEach((c) => {
+      const items = products
+        .filter((p) => p.category_id === c.id && p.menu_type === filterMenu)
+        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+      grouped[c.id] = items;
+    });
+    setLocal(grouped);
+  }, [products, cats, filterMenu]);
+
+  const menuCats = cats.filter((c) => c.menu_type === filterMenu).sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  const onPointerDown = (e, catId, pid) => {
+    e.preventDefault();
+    setDragging({ catId, pid, x: e.clientX, y: e.clientY });
+  };
+
+  useEffect(() => {
+    if (!dragging) return;
+    const move = (e) => {
+      setDragging((d) => ({ ...d, x: e.clientX, y: e.clientY }));
+      // Detect which card we're hovering
+      const els = document.elementsFromPoint(e.clientX, e.clientY);
+      const overCard = els.find((el) => el.dataset && el.dataset.pid && el.dataset.cat === dragging.catId);
+      if (overCard && overCard.dataset.pid !== dragging.pid) {
+        setLocal((prev) => {
+          const list = [...(prev[dragging.catId] || [])];
+          const from = list.findIndex((p) => p.id === dragging.pid);
+          const to = list.findIndex((p) => p.id === overCard.dataset.pid);
+          if (from < 0 || to < 0 || from === to) return prev;
+          const [item] = list.splice(from, 1);
+          list.splice(to, 0, item);
+          return { ...prev, [dragging.catId]: list };
+        });
+      }
+    };
+    const up = async () => {
+      const catId = dragging.catId;
+      const finalList = local[catId] || [];
+      setDragging(null);
+      // Persist to backend
+      setSaving(true);
+      try {
+        await api.post("/products/reorder", { ordered_ids: finalList.map((p) => p.id) });
+        toast.success("Ordre enregistré");
+        onReordered && onReordered();
+      } catch (e) {
+        toast.error("Erreur d'enregistrement");
+      } finally { setSaving(false); }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up, { once: true });
+    return () => { window.removeEventListener("pointermove", move); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragging?.pid]);
+
+  return (
+    <div data-testid="order-panel">
+      <div className="border border-ink/10 bg-cream-surface/50 p-4 mb-4">
+        <p className="text-[10px] tracking-[.3em] uppercase text-brand mb-1">Ordre d&apos;affichage boutique</p>
+        <h3 className="font-display text-xl mb-2">Glissez pour réordonner</h3>
+        <p className="text-sm text-muted2">Clic maintenu sur un produit puis glissez-le à la position voulue. L&apos;ordre est sauvegardé automatiquement dès que vous relâchez.</p>
+      </div>
+
+      {/* Menu switch */}
+      <div className="flex gap-2 mb-6">
+        {["restaurant", "epicerie"].map((mt) => (
+          <button key={mt} onClick={() => setFilterMenu(mt)}
+            data-testid={`order-menu-${mt}`}
+            className={`px-4 py-2 text-xs tracking-widest uppercase border ${filterMenu === mt ? "bg-brand text-cream border-brand" : "border-ink/20"}`}>
+            {mt === "epicerie" ? "Épicerie" : "Restaurant"}
+          </button>
+        ))}
+        {saving && <span className="ml-auto text-xs text-muted2 self-center">Enregistrement…</span>}
+      </div>
+
+      {/* Groups */}
+      <div className="space-y-6">
+        {menuCats.map((cat) => {
+          const items = local[cat.id] || [];
+          return (
+            <div key={cat.id} className="border border-ink/10 bg-cream" data-testid={`order-cat-${cat.id}`}>
+              <div className="border-b border-ink/10 px-4 py-3 flex items-baseline justify-between">
+                <p className="font-display text-xl">{cat.name}</p>
+                <p className="text-xs tracking-widest uppercase text-muted2">{items.length} produit{items.length > 1 ? "s" : ""}</p>
+              </div>
+              {items.length === 0 ? (
+                <p className="p-4 text-sm text-muted2">Aucun produit dans cette catégorie.</p>
+              ) : (
+                <ul className="p-2">
+                  {items.map((p, i) => {
+                    const isDragging = dragging?.pid === p.id;
+                    return (
+                      <li key={p.id}
+                        ref={(el) => (cardRefs.current[p.id] = el)}
+                        data-pid={p.id} data-cat={cat.id}
+                        data-testid={`order-item-${p.id}`}
+                        className={`flex items-center gap-3 border p-2 mb-1 cursor-grab active:cursor-grabbing select-none transition-all ${isDragging ? "opacity-40 border-brand" : "border-ink/10 hover:border-brand bg-cream-surface/40"}`}
+                        onPointerDown={(e) => onPointerDown(e, cat.id, p.id)}
+                      >
+                        <span className="w-8 text-center font-display text-lg text-brand shrink-0">{i + 1}</span>
+                        <span className="text-ink/40 pointer-events-none">☰</span>
+                        {p.image_url && <img src={p.image_url} alt="" className="w-12 h-12 object-cover pointer-events-none shrink-0" />}
+                        <span className="flex-1 truncate pointer-events-none">{p.name}</span>
+                        <span className="text-sm text-brand shrink-0 pointer-events-none">CHF {Number(p.price).toFixed(2)}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Ghost card following the cursor */}
+      {dragging && (
+        <div className="fixed pointer-events-none z-50 bg-brand text-cream px-3 py-2 text-xs shadow-2xl"
+          style={{ left: dragging.x + 12, top: dragging.y + 12 }}>
+          Déplacement…
+        </div>
+      )}
+    </div>
   );
 }
 

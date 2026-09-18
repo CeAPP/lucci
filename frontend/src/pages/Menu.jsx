@@ -78,11 +78,11 @@ export default function Menu({ menuType: propMenuType }) {
   const cartCount = countFor(menuType);
   const cartTotal = totalFor(menuType);
 
-  const heroTitle = menuType === "epicerie" ? "L'Épicerie" : "Il Ristorante";
+  const heroTitle = menuType === "epicerie" ? "Épicerie" : "Menu";
   const heroSub = menuType === "epicerie"
-    ? "Produits d'exception, sélectionnés en Italie. À emporter ou livrés — jusqu'à 2 semaines à l'avance."
+    ? "Sélection de produits du marché Angelucci, à venir chercher à la Farmacia, moyennant 3 jours d'avance."
     : "Cuisine du marché, à emporter.";
-  const heroTag = menuType === "epicerie" ? "Bottega" : "Trattoria";
+  const heroTag = menuType === "epicerie" ? "" : "Trattoria";
   const accentClass = menuType === "epicerie" ? "bg-brand" : "bg-terracotta";
   const accentTextClass = menuType === "epicerie" ? "text-brand" : "text-terracotta";
   const accentBorderClass = menuType === "epicerie" ? "border-brand" : "border-terracotta";
@@ -92,14 +92,13 @@ export default function Menu({ menuType: propMenuType }) {
       {/* HERO with editorial color */}
       <section className="relative pt-32 pb-14 overflow-hidden">
         <div className={`absolute inset-0 ${menuType === "epicerie" ? "bg-gradient-to-br from-brand/8 to-cream" : "bg-gradient-to-br from-terracotta/8 to-cream"}`} />
-        <div className="pointer-events-none absolute top-24 right-8 md:right-16 font-display text-[6rem] sm:text-[8rem] md:text-[12rem] lg:text-[14rem] leading-none opacity-[.07] select-none whitespace-nowrap">
-          {menuType === "epicerie" ? "Bottega" : "Menu"}
-        </div>
         <div className="relative max-w-[1400px] mx-auto px-6 md:px-10">
-          <div className="flex items-center gap-4 mb-5">
-            <span className={`w-12 h-px ${menuType === "epicerie" ? "bg-brand" : "bg-terracotta"}`} />
-            <p className={`text-[11px] tracking-[.4em] uppercase ${accentTextClass}`}>{heroTag} · Angelucci's</p>
-          </div>
+          {heroTag && (
+            <div className="flex items-center gap-4 mb-5">
+              <span className={`w-12 h-px ${menuType === "epicerie" ? "bg-brand" : "bg-terracotta"}`} />
+              <p className={`text-[11px] tracking-[.4em] uppercase ${accentTextClass}`}>{heroTag} · Farmacia Angelucci</p>
+            </div>
+          )}
           <h1 className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl mb-4 leading-[.95] break-words">
             {heroTitle}<span className={accentTextClass}>.</span>
           </h1>

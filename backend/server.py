@@ -98,6 +98,7 @@ class Product(BaseModel):
     tags: List[str] = []
     variants: List[dict] = []  # [{id, name, quantity, price}] — single-choice size/qty options
     out_of_stock_until: Optional[str] = None  # ISO date
+    sort_order: int = 0  # Position within the parent category (0 = first)
     is_active: bool = True
     created_at: str = Field(default_factory=now_iso)
 
@@ -396,7 +397,7 @@ async def list_products(menu_type: Optional[str] = None, admin: bool = False, us
     q = {}
     if menu_type:
         q["menu_type"] = menu_type
-    docs = await db.products.find(q, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    docs = await db.products.find(q, {"_id": 0}).sort([("sort_order", 1), ("created_at", -1)]).to_list(2000)
     if not admin:
         today = date.today()
         docs = [d for d in docs if _is_available(d, today)]
@@ -408,7 +409,18 @@ async def list_products_admin(menu_type: Optional[str] = None, user: dict = Depe
     q = {}
     if menu_type:
         q["menu_type"] = menu_type
-    return await db.products.find(q, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    return await db.products.find(q, {"_id": 0}).sort([("sort_order", 1), ("created_at", -1)]).to_list(2000)
+
+
+@api.post("/products/reorder")
+async def reorder_products(payload: dict, user: dict = Depends(get_current_user)):
+    """Bulk update sort_order. Payload: {"ordered_ids": ["id1", "id2", ...]} — position = index."""
+    ids = payload.get("ordered_ids") or []
+    if not isinstance(ids, list):
+        raise HTTPException(400, "ordered_ids must be a list")
+    for idx, pid in enumerate(ids):
+        await db.products.update_one({"id": pid}, {"$set": {"sort_order": idx}})
+    return {"ok": True, "count": len(ids)}
 
 
 @api.post("/products")

@@ -19,25 +19,26 @@ DEFAULT_SETTINGS = {
 }
 
 
-def default_day(open_lunch=True, open_dinner=True):
+def default_day(is_open=True):
+    """Continuous opening — single window (no separate dinner service)."""
     return {
-        "closed": not (open_lunch or open_dinner),
-        "lunch_start": "11:30" if open_lunch else "",
-        "lunch_end": "14:30" if open_lunch else "",
-        "dinner_start": "18:30" if open_dinner else "",
-        "dinner_end": "22:30" if open_dinner else "",
+        "closed": not is_open,
+        "lunch_start": "09:00" if is_open else "",
+        "lunch_end": "22:30" if is_open else "",
+        "dinner_start": "",
+        "dinner_end": "",
     }
 
 
 def default_schedule(kind: str):
     days = {
-        "mon": default_day(True, True),
-        "tue": default_day(True, True),
-        "wed": default_day(True, True),
-        "thu": default_day(True, True),
-        "fri": default_day(True, True),
-        "sat": default_day(False, True),
-        "sun": {"closed": True, "lunch_start": "", "lunch_end": "", "dinner_start": "", "dinner_end": ""},
+        "mon": default_day(False),  # closed on Monday by default
+        "tue": default_day(True),
+        "wed": default_day(True),
+        "thu": default_day(True),
+        "fri": default_day(True),
+        "sat": default_day(True),
+        "sun": default_day(False),  # closed on Sunday by default
     }
     return {"_id": f"schedule_{kind}", "kind": kind, "days": days, "closed_dates": []}
 
@@ -57,6 +58,26 @@ async def seed_db(db):
     for kind in ["restaurant", "reservation", "epicerie"]:
         if not await db.schedules.find_one({"_id": f"schedule_{kind}"}):
             await db.schedules.insert_one(default_schedule(kind))
+        else:
+            # Migration: fold split lunch/dinner window into a continuous window
+            existing = await db.schedules.find_one({"_id": f"schedule_{kind}"})
+            days = existing.get("days", {})
+            changed = False
+            for dkey, d in days.items():
+                if d.get("dinner_end"):
+                    # Merge: new lunch_end = dinner_end (or the later of the two), clear dinner_*
+                    new_end = d.get("dinner_end")
+                    new_start = d.get("lunch_start") or d.get("dinner_start") or ""
+                    days[dkey] = {
+                        "closed": d.get("closed", False),
+                        "lunch_start": new_start,
+                        "lunch_end": new_end,
+                        "dinner_start": "",
+                        "dinner_end": "",
+                    }
+                    changed = True
+            if changed:
+                await db.schedules.update_one({"_id": f"schedule_{kind}"}, {"$set": {"days": days}})
 
     # Categories (both menus)
     if await db.categories.count_documents({}) == 0:

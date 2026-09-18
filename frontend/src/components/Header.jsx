@@ -5,7 +5,7 @@ import { Menu, X } from "lucide-react";
 const LOGO = "https://customer-assets.emergentagent.com/job_pizzeria-app-26/artifacts/jwci5np5_LOgo%20angelucci.png";
 
 const NAV = [
-  { to: "/commander", label: "Commander" },
+  { to: "/commander", label: "Vente à l'emporter" },
   { to: "/epicerie", label: "Épicerie" },
   { to: "/reserver", label: "Réserver" },
   { to: "/histoire", label: "Notre histoire" },
