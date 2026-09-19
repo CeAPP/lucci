@@ -645,6 +645,23 @@ function MenuTab() {
               variant="outline" className="rounded-none border-ink/40 hover:bg-ink hover:text-cream uppercase text-xs tracking-widest">
               <Download size={14} className="mr-1"/> Importer CSV
             </Button>
+            <Button onClick={async () => {
+              try {
+                const res = await api.get("/products/export-csv", { responseType: "blob" });
+                const url = URL.createObjectURL(res.data);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `produits-angeluccis-${new Date().toISOString().slice(0,10)}.csv`;
+                document.body.appendChild(a); a.click(); a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                toast.success(`${products.length} produit${products.length>1?"s":""} exporté${products.length>1?"s":""}`);
+              } catch (e) {
+                toast.error("Échec de l'export : " + (e?.response?.data?.detail || e.message));
+              }
+            }} data-testid="csv-export-btn"
+              variant="outline" className="rounded-none border-ink/40 hover:bg-ink hover:text-cream uppercase text-xs tracking-widest">
+              <Download size={14} className="mr-1 rotate-180"/> Exporter CSV
+            </Button>
             <Button onClick={() => setEditing({ menu_type: filterMenu, category_id: catsFor(filterMenu)[0]?.id, price: 0, addon_group_ids: [], is_active: true })}
               data-testid="new-product-btn"
               className="bg-brand hover:bg-brand-hover text-cream rounded-none uppercase text-xs tracking-widest"><Plus size={14} className="mr-1"/> Nouveau produit</Button>

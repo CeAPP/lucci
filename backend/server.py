@@ -499,6 +499,51 @@ async def set_tag_oos(tag: str, until: str = "", user: dict = Depends(get_curren
     return {"ok": True, "affected": r.modified_count, "tag": tag, "until": val}
 
 
+@api.get("/products/export-csv")
+async def export_products_csv(user: dict = Depends(get_current_user)):
+    """Download all products as a CSV — same column set the import endpoint accepts,
+    plus every field kept in Mongo so nothing is lost on round-trip.
+    """
+    import csv
+    import io as _io
+    cats = {c["id"]: c for c in await db.categories.find({}, {"_id": 0}).to_list(500)}
+    prods = await db.products.find({}, {"_id": 0}).sort([("menu_type", 1), ("category_id", 1), ("sort_order", 1)]).to_list(5000)
+    buf = _io.StringIO()
+    # utf-8 BOM so Excel opens it correctly with accents
+    buf.write("\ufeff")
+    fields = [
+        "name", "price", "category", "menu_type", "description", "image_url",
+        "tags", "is_active", "sort_order", "out_of_stock_until", "variants",
+    ]
+    w = csv.DictWriter(buf, fieldnames=fields, extrasaction="ignore")
+    w.writeheader()
+    for p in prods:
+        cat = cats.get(p.get("category_id")) or {}
+        w.writerow({
+            "name": p.get("name", ""),
+            "price": f"{float(p.get('price') or 0):.2f}",
+            "category": cat.get("name", ""),
+            "menu_type": p.get("menu_type", ""),
+            "description": p.get("description", ""),
+            "image_url": p.get("image_url", ""),
+            "tags": ";".join(p.get("tags") or []),
+            "is_active": "1" if p.get("is_active", True) else "0",
+            "sort_order": p.get("sort_order", 0),
+            "out_of_stock_until": p.get("out_of_stock_until") or "",
+            # Variants serialised as "name|qty|price;name|qty|price"
+            "variants": ";".join(
+                f"{(v.get('name') or '').replace('|','/')}|{v.get('quantity','')}|{v.get('price','')}"
+                for v in (p.get("variants") or [])
+            ),
+        })
+    filename = f"produits-angeluccis-{datetime.now().strftime('%Y%m%d')}.csv"
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @api.post("/products/import-csv")
 async def import_csv(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
     import csv
