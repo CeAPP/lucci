@@ -100,20 +100,20 @@ function usePing() {
     // Auto-resume if suspended (browser tab was idle / OS locked screen)
     if (ctx.state === "suspended") { try { ctx.resume(); } catch {} }
     const now = ctx.currentTime;
-    // 2-second siren burst — 8 alternating high/low tones, max volume
-    const notes = [1200, 800, 1200, 800, 1200, 800, 1200, 800];
+    // Gentle 2-tone bip-bop — soft sine wave, low volume, 0.5 s total
+    const notes = [880, 660]; // A5 then E5 (musical, non-piercing)
     notes.forEach((freq, i) => {
-      const t = i * 0.25;
+      const t = i * 0.22;
       const o = ctx.createOscillator();
       const g = ctx.createGain();
-      o.type = "square";
+      o.type = "sine";           // soft sine (was "square" = harsh siren)
       o.frequency.value = freq;
       o.connect(g); g.connect(ctx.destination);
       g.gain.setValueAtTime(0.0001, now + t);
-      g.gain.exponentialRampToValueAtTime(1.0, now + t + 0.03);
-      g.gain.setValueAtTime(1.0, now + t + 0.20);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.24);
-      o.start(now + t); o.stop(now + t + 0.25);
+      g.gain.exponentialRampToValueAtTime(0.15, now + t + 0.02);
+      g.gain.setValueAtTime(0.15, now + t + 0.16);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.20);
+      o.start(now + t); o.stop(now + t + 0.22);
     });
   };
   return { enable, play, enabled: () => !!ctxRef.current };
@@ -136,10 +136,10 @@ function OrdersTab({ ping }) {
     setAlarmActive(false);
   };
 
-  // Continuous 5-minute siren: 2 s burst every 3 s until admin acknowledges or timeout.
+  // Gentle repeat — a soft bip every 15 s during 90 s max (auto-stops when acknowledged).
   const startAlarm = () => {
     if (alarmTimerRef.current) return; // already ringing
-    alarmDeadlineRef.current = Date.now() + 5 * 60 * 1000; // 5 min
+    alarmDeadlineRef.current = Date.now() + 90 * 1000; // 90 s
     setAlarmActive(true);
     ping.play();
     alarmTimerRef.current = setInterval(() => {
@@ -147,7 +147,7 @@ function OrdersTab({ ping }) {
       // Only ring if there's still at least one "new" order
       if (lastIdsRef.current.size === 0) { stopAlarm(); return; }
       ping.play();
-    }, 3000);
+    }, 15000);
   };
 
   const load = async () => {
@@ -235,7 +235,7 @@ function OrdersTab({ ping }) {
             <span className="text-2xl">🔔</span>
             <div>
               <p className="font-display text-lg text-destructive">Nouvelle commande — Alarme active</p>
-              <p className="text-xs text-muted2">Sirène continue pendant 5 min. Confirmez ou refusez pour l&apos;arrêter.</p>
+              <p className="text-xs text-muted2">Bip doux répété pendant 90 s. Confirmez ou refusez pour l&apos;arrêter.</p>
             </div>
           </div>
           <Button onClick={stopAlarm} data-testid="stop-alarm"
@@ -472,14 +472,14 @@ function ReservationsTab({ ping }) {
   };
   const startAlarm = () => {
     if (alarmTimerRef.current) return;
-    alarmDeadlineRef.current = Date.now() + 5 * 60 * 1000;
+    alarmDeadlineRef.current = Date.now() + 90 * 1000;
     setAlarmActive(true);
     ping.play();
     alarmTimerRef.current = setInterval(() => {
       if (Date.now() > alarmDeadlineRef.current) { stopAlarm(); return; }
       if (lastIdsRef.current.size === 0) { stopAlarm(); return; }
       ping.play();
-    }, 3000);
+    }, 15000);
   };
 
   const load = async () => {
@@ -519,7 +519,7 @@ function ReservationsTab({ ping }) {
             <span className="text-2xl">🔔</span>
             <div>
               <p className="font-display text-lg text-destructive">Nouvelle réservation — Alarme active</p>
-              <p className="text-xs text-muted2">Sirène continue pendant 5 min. Marquez « vue » pour l&apos;arrêter.</p>
+              <p className="text-xs text-muted2">Bip doux répété pendant 90 s. Marquez « vue » pour l&apos;arrêter.</p>
             </div>
           </div>
           <Button onClick={stopAlarm} data-testid="stop-res-alarm"
@@ -2357,10 +2357,10 @@ export default function AdminDashboard() {
             <p className="text-xs tracking-widest uppercase text-brand mb-2">Angelucci&apos;s · Admin</p>
             <h2 className="font-display text-2xl mb-3">Prêt à recevoir les commandes ?</h2>
             <p className="text-sm text-muted2 mb-5">
-              Pour ne rater aucune commande, on active le son (sirène continue pendant 5 min) et le mode anti-veille (écran maintenu allumé).
+              Pour ne rater aucune commande, on active un bip doux (répété pendant 90 s) et le mode anti-veille (écran maintenu allumé).
             </p>
             <ul className="text-sm space-y-2 mb-6">
-              <li className="flex items-center gap-2"><Volume2 size={16} className="text-brand"/> Alerte sonore continue</li>
+              <li className="flex items-center gap-2"><Volume2 size={16} className="text-brand"/> Bip doux à chaque nouvelle commande</li>
               <li className="flex items-center gap-2"><Bell size={16} className="text-brand"/> Notification push (Pushover)</li>
               <li className="flex items-center gap-2"><span className="text-brand">☀︎</span> Anti-veille écran</li>
             </ul>

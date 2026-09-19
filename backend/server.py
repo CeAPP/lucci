@@ -877,7 +877,7 @@ async def _notify_new_order(order: dict, order_in: OrderCreate):
     except Exception as e:
         logger.error(f"Email failure: {e}")
 
-    # Pushover EMERGENCY alert (priority 2 — retry every 30s during 6 min)
+    # Pushover HIGH-priority push (single alert, default gentle sound)
     try:
         pu_token = os.environ.get("PUSHOVER_API_TOKEN")
         pu_user = os.environ.get("PUSHOVER_USER_KEY")
@@ -893,9 +893,9 @@ async def _notify_new_order(order: dict, order_in: OrderCreate):
             import requests as _req
             _req.post("https://api.pushover.net/1/messages.json", data={
                 "token": pu_token, "user": pu_user,
-                "title": f"Nouvelle commande — Angelucci's",
+                "title": "Nouvelle commande — Angelucci's",
                 "message": body,
-                "priority": 2, "retry": 30, "expire": 360, "sound": "siren",
+                "priority": 1, "sound": "pushover",
             }, timeout=10)
     except Exception as e:
         logger.error(f"Pushover failure: {e}")
@@ -1094,7 +1094,7 @@ async def create_reservation(r: ReservationCreate, request: Request):
     except Exception as e:
         logger.error(f"Reservation email failure: {e}")
 
-    # Pushover EMERGENCY alert on new reservation (priority 2 — retry every 30s during 6 min)
+    # Pushover HIGH-priority push on new reservation (single alert, default gentle sound)
     try:
         pu_token = os.environ.get("PUSHOVER_API_TOKEN")
         pu_user = os.environ.get("PUSHOVER_USER_KEY")
@@ -1110,7 +1110,7 @@ async def create_reservation(r: ReservationCreate, request: Request):
                 "token": pu_token, "user": pu_user,
                 "title": "Nouvelle réservation — Angelucci's",
                 "message": body,
-                "priority": 2, "retry": 30, "expire": 360, "sound": "siren",
+                "priority": 1, "sound": "pushover",
             }, timeout=10)
     except Exception as e:
         logger.error(f"Pushover reservation failure: {e}")
