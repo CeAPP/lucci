@@ -58,7 +58,7 @@ export default function Landing() {
               className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center lg:justify-start">
               <Link to="/commander" data-testid="hero-cta-order"
                 className="group inline-flex items-center justify-center gap-3 bg-ink hover:bg-terracotta text-cream px-7 py-4 text-[12px] tracking-[.2em] uppercase transition-colors">
-                {t("hero_cta_order", "Commander")} <ArrowRight size={16} strokeWidth={1.5} className="group-hover:translate-x-1 transition-transform" />
+                {t("hero_cta_order", "Vente à l'emporter")} <ArrowRight size={16} strokeWidth={1.5} className="group-hover:translate-x-1 transition-transform" />
               </Link>
               <Link to="/reserver" data-testid="hero-cta-book"
                 className="inline-flex items-center justify-center gap-3 border border-ink hover:bg-ink hover:text-cream px-7 py-4 text-[12px] tracking-[.2em] uppercase text-ink transition-colors">

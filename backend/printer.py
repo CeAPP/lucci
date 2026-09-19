@@ -13,24 +13,30 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-# ---------- ESC/POS command bytes (mC-Print2 in ESC/POS-compatible mode) ----------
+# ---------- Star Line Mode commands (mC-Print2 default firmware mode) ----------
+# NB: mC-Print2 CloudPRNT expects Star Line Mode by default. ESC/POS GS-prefix
+# commands (e.g. GS V, GS !) are printed literally, so we use ESC-prefix Star
+# equivalents everywhere.
 ESC = b"\x1b"
-GS = b"\x1d"
 LF = b"\n"
 
-INIT           = ESC + b"@"
-BOLD_ON        = ESC + b"E\x01"
-BOLD_OFF       = ESC + b"E\x00"
-ALIGN_LEFT     = ESC + b"a\x00"
-ALIGN_CENTER   = ESC + b"a\x01"
-ALIGN_RIGHT    = ESC + b"a\x02"
-SIZE_NORMAL    = GS + b"!\x00"
-SIZE_DBL_H     = GS + b"!\x01"   # double height
-SIZE_DBL_W     = GS + b"!\x10"   # double width
-SIZE_DBL_BOTH  = GS + b"!\x11"   # double width + height
+INIT           = ESC + b"@"              # initialize
+BOLD_ON        = ESC + b"E"              # emphasize on
+BOLD_OFF       = ESC + b"F"              # emphasize off (Star Line Mode)
+ALIGN_LEFT     = ESC + b"\x1d\x61\x00"   # align left  (Star: ESC GS a n)
+ALIGN_CENTER   = ESC + b"\x1d\x61\x01"   # align center
+ALIGN_RIGHT    = ESC + b"\x1d\x61\x02"   # align right
+DBL_H_ON       = ESC + b"h\x01"          # double height on
+DBL_H_OFF      = ESC + b"h\x00"
+DBL_W_ON       = ESC + b"W\x01"          # double width on
+DBL_W_OFF      = ESC + b"W\x00"
+# "big" = double width + double height
+SIZE_DBL_H     = DBL_W_OFF + DBL_H_ON
+SIZE_DBL_BOTH  = DBL_W_ON  + DBL_H_ON
+SIZE_NORMAL    = DBL_W_OFF + DBL_H_OFF
+# Star: ESC d n → feed to cut position and full/partial cut
+CUT            = ESC + b"d\x02"          # feed + full cut
 FEED3          = b"\n\n\n"
-# Star mC-Print2 supports the ESC/POS full cut command
-CUT            = GS + b"V\x00"
 
 LINE_WIDTH = 32
 SEP        = b"-" * LINE_WIDTH + LF
