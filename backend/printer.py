@@ -107,19 +107,34 @@ def _fmt_dt(iso: str) -> str:
 
 
 def _fmt_pickup(order: dict) -> str:
-    """Format `pickup_time` (either 'ASAP' or ISO) into a friendly HH:MM label."""
-    label = order.get("pickup_time_label")
-    if label and label != "ASAP":
-        return label
+    """Format `pickup_time` (either 'ASAP' or ISO) into a big-and-clear label."""
     pt = order.get("pickup_time") or ""
     if pt == "ASAP":
-        return "Des que possible"
+        return "DES QUE POSSIBLE"
+    # Try parsing the ISO string first, then fall back to the plain label
     try:
         from zoneinfo import ZoneInfo
         dt = datetime.fromisoformat(pt.replace("Z", "+00:00"))
-        return dt.astimezone(ZoneInfo("Europe/Zurich")).strftime("%d.%m %H:%M")
+        dt = dt.astimezone(ZoneInfo("Europe/Zurich"))
+        today = datetime.now(ZoneInfo("Europe/Zurich")).date()
+        hhmm = dt.strftime("%Hh%M")
+        if dt.date() == today:
+            return f"AUJ. {hhmm}"
+        # DD/MM · HHhMM  — fits in 16 chars (safe for DBL width)
+        return f"{dt.strftime('%d/%m')} - {hhmm}"
     except Exception:
-        return pt
+        pass
+    label = (order.get("pickup_time_label") or pt or "").strip()
+    # Fallback: pretty-print HH:MM as HHhMM if we can spot the pattern
+    m = None
+    try:
+        import re as _re
+        m = _re.search(r"(\d{1,2}):(\d{2})", label)
+    except Exception:
+        pass
+    if m:
+        label = label.replace(m.group(0), f"{int(m.group(1)):02d}h{m.group(2)}")
+    return label.upper()
 
 
 # ---------- Ticket builders ----------
@@ -157,7 +172,11 @@ def build_client_ticket(order: dict, header: dict) -> bytes:
     out += _line(f"Date : {_fmt_dt(order.get('created_at', ''))}")
     ftype = "Vente a l'emporter" if order.get("fulfillment_type") == "takeaway" else "Livraison"
     out += _line(f"Type : {ftype}")
-    out += _line(f"Retrait : {_fmt_pickup(order)}")
+    # Pickup time — highlighted (double width + height) so it's spotted at a glance
+    out += LF + BOLD_ON + SIZE_DBL_BOTH
+    out += _line("RETRAIT")
+    out += _line(_fmt_pickup(order))
+    out += SIZE_NORMAL + BOLD_OFF + LF
     menu_lbl = "Restaurant" if order.get("menu_type") == "restaurant" else "Epicerie"
     out += _line(f"Menu : {menu_lbl}")
     out += SEP
@@ -231,7 +250,11 @@ def build_kitchen_ticket(order: dict) -> bytes:
     out += BOLD_ON + SIZE_DBL_H
     out += _line(f"CMD #{order.get('order_number','')}")
     out += SIZE_NORMAL + BOLD_OFF
-    out += _line(f"Retrait : {_fmt_pickup(order)}")
+    # Pickup time — big, front & center for the kitchen
+    out += LF + BOLD_ON + SIZE_DBL_BOTH
+    out += _line("RETRAIT")
+    out += _line(_fmt_pickup(order))
+    out += SIZE_NORMAL + BOLD_OFF + LF
     cust = order.get("customer") or {}
     first = cust.get("first_name") or ""
     last_ini = (cust.get("last_name") or "")[:1]
