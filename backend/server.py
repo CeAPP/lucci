@@ -895,7 +895,8 @@ async def _notify_new_order(order: dict, order_in: OrderCreate):
                 "token": pu_token, "user": pu_user,
                 "title": "Nouvelle commande — Angelucci's",
                 "message": body,
-                "priority": 1, "sound": "pushover",
+                # EMERGENCY: re-alert every 30 s pendant 30 min, sirène au max
+                "priority": 2, "retry": 30, "expire": 1800, "sound": "siren",
             }, timeout=10)
     except Exception as e:
         logger.error(f"Pushover failure: {e}")
@@ -1110,7 +1111,8 @@ async def create_reservation(r: ReservationCreate, request: Request):
                 "token": pu_token, "user": pu_user,
                 "title": "Nouvelle réservation — Angelucci's",
                 "message": body,
-                "priority": 1, "sound": "pushover",
+                # EMERGENCY: re-alert every 30 s pendant 30 min, sirène au max
+                "priority": 2, "retry": 30, "expire": 1800, "sound": "siren",
             }, timeout=10)
     except Exception as e:
         logger.error(f"Pushover reservation failure: {e}")
