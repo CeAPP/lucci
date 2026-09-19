@@ -1,0 +1,38 @@
+{
+  "summary": "Full Python→Node migration parity verification. 32/32 backend pytest tests passing against the public URL. All URL/method contracts match the Python version: query-param PATCH/PUT endpoints (/api/content, /api/theme, /api/admin/orders/:id/status, /api/admin/promos/:pid), UTF-8 BOM + 11-column CSV export, PDF %PDF signature, CloudPRNT ticket ending with ESC d 2 (1b 64 02) and no GS V bytes (1d 56), Payrexx webhook form-urlencoded handler present, JWT auth + owner/staff RBAC (staff correctly 403'd from /api/admin/marketing-emails), reservation honeypot + 30-min lead time, image upload round-trip. Frontend: public pages (/, /commander, /epicerie, /reserver, /histoire, /contact) all HTTP 200 and render. Admin login (AngelCED26 / CE26$Lucc) works, JWT returned, dashboard loads and renders orders/reservations correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/orders", "issue": "No server-side normalization of order items — items are stored as-is from the request body. If a client omits `selected_addons` on an item, /Angel/dashboard OrdersTab (line 300: `it.selected_addons.length`) crashes with 'Cannot read properties of undefined (reading length)'. Python/Pydantic likely defaulted this to []. Recommend defaulting `selected_addons: []` and `addons: []` on each item at insert time in server.js (POST /api/orders). Discovered during testing when a payload with `addons` (no `selected_addons`) polluted the DB and crashed OrdersTab; cleaned up test rows to restore dashboard."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_node_migration.py",
+    "/app/test_reports/pytest/node_migration.xml"
+  ],
+  "action_items": [
+    "Defensive: in POST /api/orders (server.js ~line 642), normalize each item to always include `selected_addons: it.selected_addons || []` (and optionally `addons: it.addons || []`, `notes: it.notes || ''`) before insert so a malformed client payload can't break the admin OrdersTab. Frontend Admin.jsx line 300 could also be guarded with `(it.selected_addons || []).length > 0`."
+  ],
+  "critical_code_review_comments": [
+    "server.js is 1038 lines — recommend splitting into routers (orders.js, admin.js, cloudprnt.js, cms.js) for maintainability.",
+    "server.js POST /orders stores `items: orderIn.items || []` verbatim — no schema validation. A stray field or missing default (e.g. selected_addons) can break downstream consumers (admin UI). Pydantic in the previous Python version enforced this; consider a tiny Zod/manual normalizer.",
+    "server.js /api/webhooks/payrexx trusts the incoming form payload without HMAC verification (payrexx.js has signing for outgoing calls but no verify for incoming). Confirm this matches Python parity — if Python verified webhook signatures, this is a regression.",
+    "storeImage keeps images as BSON Binary inside settings-adjacent collection — fine for now, but ensure Mongo doc size stays under 16 MB per image (multer limit is 15 MB which is safe).",
+    "seed.js runs on every boot — verify it is idempotent (uses upsert / findOne guards) so container restarts don't duplicate categories/products."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_node_migration.py"
+  ],
+  "success_rate": {"backend": "100% (32/32)", "frontend": "100% (all public + admin pages load and render)"},
+  "test_credentials": "AngelCED26 / CE26$Lucc (owner) and AnCED25 / 26$LuANG (staff) — both verified via /api/auth/login and /api/auth/me.",
+  "seed_data_creation": "Created and deleted a temporary product (TEST_MIGR_PROD), a reservation, a promo (TESTMIGR), an uploaded PNG, and a few orders during test lifecycle; all TEST_ rows removed after tests. Also created and removed a content_block page='test'.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Node backend migration is verified end-to-end against the Python contract. Re-run /app/backend/tests/test_node_migration.py at any time — it's fully self-contained and idempotent. The one migration risk to keep in mind: POST /api/orders lacks the Pydantic-style item normalization the Python version had; if a client sends items without `selected_addons` the /Angel/dashboard OrdersTab crashes on `.length`. Recommend a 2-line defensive default in server.js.",
+  "rca of the issue": "Symptom: OrdersTab crashed at bundle line ~5396 with 'Cannot read properties of undefined (reading length)'. Reproduction: POST /api/orders with items lacking `selected_addons` (e.g. only `addons: []`). Root cause: Node backend inserts `items: orderIn.items || []` verbatim — no per-item normalization. Python/FastAPI Pydantic model previously enforced `selected_addons: List = []` default. Mitigation applied: cleaned polluted rows from mongo (updateMany deleted=true for TEST_-prefixed customers). Permanent fix: server.js POST /api/orders — before insertOne, run `order.items = order.items.map(it => ({selected_addons: [], addons: [], notes: '', ...it}))`."
+}

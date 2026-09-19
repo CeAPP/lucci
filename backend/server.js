@@ -631,6 +631,16 @@ api.post("/orders", wrap(async (req, res) => {
 
   const totals = await calcTotals(orderIn);
   const isOnline = orderIn.payment_method === "online";
+  // Normalize items so downstream consumers (admin UI, printer) always find the same shape.
+  const items = (orderIn.items || []).map(it => ({
+    product_id: it.product_id || "",
+    name: it.name || "",
+    quantity: parseInt(it.quantity) || 1,
+    unit_price: Number(it.unit_price) || 0,
+    selected_addons: Array.isArray(it.selected_addons) ? it.selected_addons : [],
+    note: it.note || "",
+    line_total: Number(it.line_total) || 0,
+  }));
   const order = {
     id: crypto.randomUUID(),
     order_number: genOrderNumber(),
@@ -639,7 +649,7 @@ api.post("/orders", wrap(async (req, res) => {
     pickup_time: orderIn.pickup_time,
     pickup_time_label: orderIn.pickup_time === "ASAP" ? "Dès que possible" : orderIn.pickup_time,
     customer: orderIn.customer,
-    items: orderIn.items || [],
+    items,
     ...totals,
     status: isOnline ? "pending_payment" : "new",
     payment_method: orderIn.payment_method || "onsite",

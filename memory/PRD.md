@@ -110,10 +110,36 @@ Full-stack website for Farmacia Angelucci (branded ANGELUCCI'S) — Italian rest
 - **Checkout auto-redirect** made robust: `nav('/suivi/{id}', {replace: true})` so the back button doesn't return to the checkout page.
 
 ## Backlog / Next
-- P1: Real Resend API key hookup (done)
 - P2: Notify customer by email on reject/reschedule
 - P2: Multi-language (IT/EN)
 - P2: Disable temporary "vitrine" mode when going fully live
+- P2: Split /app/backend/server.js (1038 lines) into routers (orders.js, admin.js, cloudprnt.js, cms.js) for maintainability
+- P2: Verify Payrexx webhook HMAC signature server-side (Python version didn't either — parity preserved but adding it would harden production)
+
+## Implemented (2026-02 — Migration complète backend Python/FastAPI → Node.js/Express)
+- **Objectif** : rendre le backend hébergeable sur l'Hébergement Web 1 Infomaniak (qui ne supporte pas Python/FastAPI en processus long).
+- **Nouveau backend** : `/app/backend/` (Node 20, Express 4, mongodb driver natif, jsonwebtoken, bcryptjs, multer, resend, pdfkit, axios, csv-parse/stringify).
+- **Ancien backend Python supprimé** — plus aucun code Python dans le repo.
+- **Aucun changement frontend** : mêmes URLs `/api/*`, mêmes réponses JSON, même auth Bearer JWT, mêmes formats binaires (ESC/POS Star Line Mode, PDF, CSV UTF-8 BOM).
+- **Mêmes collections MongoDB** — pas de migration de schéma, la base reste identique.
+- **Supervisor** mis à jour : `command=/usr/bin/node server.js` dans `/app/backend/` sur port 8001.
+- **Testing agent v3** : 32/32 backend tests passing, 100 % frontend pages loading. Rapport `/app/test_reports/iteration_17.json`.
+- **Endpoints portés (60+)** :
+  - Auth : POST /auth/login (JWT + bcrypt + rate limit) · GET /auth/me
+  - Public : GET /settings · GET /content · GET /theme · GET /schedule/:kind · GET /categories · GET /addon-groups · GET /products · GET /products/:id · GET /uploads/:filename
+  - Admin (JWT) : PUT /settings · PUT /content · PUT /theme · PUT /schedule/:kind · CRUD categories (+ /move) · CRUD addon-groups · CRUD products (+ /reorder + /oos + bulk + upload + import-csv + export-csv) · GET /admin/tags · POST /admin/tags/oos · POST /upload
+  - Orders : POST /orders (avec Payrexx redirect si online) · GET /orders/:id · GET /admin/orders · PATCH /admin/orders/:id/status (déclenche impression ticket auto) · POST /admin/orders/:id/reprint · PATCH /admin/orders/:id/reschedule · DELETE /admin/orders/:id · POST /webhooks/payrexx (form-urlencoded avec transaction[key])
+  - Réservations : POST /reservations (honeypot + rate limit + 30-min lead) · GET/PATCH admin
+  - Promos : GET/POST/PATCH/DELETE /admin/promos
+  - Owner-only : GET /admin/marketing-emails
+  - Compta : GET /admin/accounting/pdf (PDFKit)
+  - Star CloudPRNT : POST/GET/DELETE /cloudprnt/poll + GET /admin/print-jobs
+- **Fichiers** :
+  - `/app/backend/package.json` (npm start prêt pour Infomaniak, écoute sur `process.env.PORT`)
+  - `/app/backend/server.js` (1038 lignes, tous les endpoints)
+  - `/app/backend/auth.js`, `printer.js`, `emails.js`, `payrexx.js`, `pdfGen.js`, `seed.js`
+  - `/app/backend/README.md` — guide de déploiement Infomaniak complet (variables env, MongoDB Atlas, Site Node.js, CloudPRNT URL update)
+- **Point d'attention** : items dans POST /orders sont désormais normalisés côté serveur (`selected_addons` toujours un array, `quantity` toujours int, etc.) pour éviter tout crash du dashboard admin sur payload malformé.
 
 ## Implemented (2026-02 — Star mC-Print2 CloudPRNT integration)
 - **Public CloudPRNT endpoints** (no auth, polled by the printer over HTTPS):
