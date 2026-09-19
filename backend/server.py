@@ -25,6 +25,7 @@ from auth import verify_credentials, create_token, get_current_user, require_own
 from emails import send_order_confirmation, send_reservation_confirmation, send_new_order_notification
 from pdf_gen import build_accounting_pdf
 from seed import seed_db
+import printer as prn
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("angeluccis")
@@ -974,7 +975,42 @@ async def list_orders_admin(status: Optional[str] = None, user: dict = Depends(g
 async def set_order_status(order_id: str, status: str, user: dict = Depends(get_current_user)):
     if status not in ["new", "preparing", "ready", "done", "rejected"]:
         raise HTTPException(400)
+    prev = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    if not prev:
+        raise HTTPException(404)
     await db.orders.update_one({"id": order_id}, {"$set": {"status": status}})
+    # Print tickets when the admin accepts a new order (new -> preparing)
+    if status == "preparing" and prev.get("status") == "new":
+        try:
+            settings = await db.settings.find_one({"_id": "settings"}, {"_id": 0}) or {}
+            header = {
+                "name": (settings.get("restaurant_name") or "Farmacia Angelucci").upper(),
+                "address": settings.get("address") or "",
+                "phone": settings.get("phone") or "",
+                "website": "angeluccis.ch",
+            }
+            await prn.enqueue_order_prints(db, prev, header)
+        except Exception as e:
+            logger.error(f"print enqueue failed for order {order_id}: {e}")
+    return {"ok": True}
+
+
+@api.post("/admin/orders/{order_id}/reprint")
+async def reprint_order(order_id: str, user: dict = Depends(get_current_user)):
+    """Manually re-enqueue the tickets for an order (e.g. printer was offline)."""
+    order = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(404)
+    # Drop any previous jobs for this order so we can re-enqueue fresh copies
+    await db.print_jobs.delete_many({"order_id": order_id})
+    settings = await db.settings.find_one({"_id": "settings"}, {"_id": 0}) or {}
+    header = {
+        "name": (settings.get("restaurant_name") or "Farmacia Angelucci").upper(),
+        "address": settings.get("address") or "",
+        "phone": settings.get("phone") or "",
+        "website": "angeluccis.ch",
+    }
+    await prn.enqueue_order_prints(db, order, header)
     return {"ok": True}
 
 
@@ -1154,6 +1190,60 @@ async def accounting_pdf(month: int, year: int, user: dict = Depends(get_current
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="comptabilite-{year}-{month:02d}.pdf"'},
     )
+
+
+# ==================== STAR CLOUDPRNT (mC-Print2) ====================
+# Public endpoint (no auth) polled by the printer over HTTPS. Configure the
+# printer's CloudPRNT URL to: https://<domain>/api/cloudprnt/poll
+# Protocol: POST = poll, GET = fetch job, DELETE = confirm print done.
+
+@api.post("/cloudprnt/poll")
+async def cloudprnt_poll(request: Request):
+    try:
+        _ = await request.json()  # printer status payload (unused)
+    except Exception:
+        pass
+    job = await prn.next_pending_job(db)
+    if not job:
+        return {"jobReady": False}
+    return {"jobReady": True, "mediaTypes": ["text/plain"], "jobToken": job["id"]}
+
+
+@api.get("/cloudprnt/poll")
+async def cloudprnt_fetch(token: Optional[str] = None):
+    job = None
+    if token:
+        job = await db.print_jobs.find_one({"id": token}, {"_id": 0})
+    if not job:
+        job = await prn.next_pending_job(db)
+    if not job:
+        return Response(status_code=404)
+    await prn.mark_downloaded(db, job["id"])
+    payload = job.get("payload") or b""
+    if isinstance(payload, str):
+        payload = payload.encode("cp437", errors="replace")
+    return Response(content=bytes(payload), media_type="text/plain")
+
+
+@api.delete("/cloudprnt/poll")
+async def cloudprnt_done(token: Optional[str] = None):
+    if token:
+        await prn.mark_printed(db, token)
+    else:
+        # Fallback: mark the oldest downloaded job as printed
+        job = await db.print_jobs.find_one({"status": "downloaded"}, sort=[("downloaded_at", 1)])
+        if job:
+            await prn.mark_printed(db, job["id"])
+    return Response(status_code=200)
+
+
+@api.get("/admin/print-jobs")
+async def list_print_jobs(user: dict = Depends(get_current_user)):
+    """Small admin view of the print queue for troubleshooting."""
+    docs = await db.print_jobs.find(
+        {}, {"_id": 0, "payload": 0}
+    ).sort("created_at", -1).limit(50).to_list(50)
+    return docs
 
 
 # ==================== STARTUP ====================

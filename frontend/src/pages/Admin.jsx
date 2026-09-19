@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { LogOut, Bell, BellOff, Phone, Trash2, ChevronUp, ChevronDown, Plus, Pencil, Volume2, Copy, Download, Upload, X, CheckCircle2 } from "lucide-react";
+import { LogOut, Bell, BellOff, Phone, Trash2, ChevronUp, ChevronDown, Plus, Pencil, Volume2, Copy, Download, Upload, X, CheckCircle2, Printer } from "lucide-react";
 import SiteTab from "@/pages/admin/SiteTab";
 
 const LOGO = "https://customer-assets.emergentagent.com/job_pizzeria-app-26/artifacts/jwci5np5_LOgo%20angelucci.png";
@@ -196,6 +196,14 @@ function OrdersTab({ ping }) {
     toast.error("Commande refusée");
   };
   const del = async (o) => { if (!confirm("Supprimer définitivement ?")) return; await api.delete(`/admin/orders/${o.id}`); load(); };
+  const reprint = async (o) => {
+    try {
+      await api.post(`/admin/orders/${o.id}/reprint`);
+      toast.success("Ticket renvoyé à l'imprimante");
+    } catch (e) {
+      toast.error("Échec de l'impression : " + (e?.response?.data?.detail || e.message));
+    }
+  };
 
   const STATUS_CFG = {
     new: { label: "En attente de confirmation", color: "bg-brand text-cream" },
@@ -314,6 +322,12 @@ function OrdersTab({ ping }) {
                   <Button onClick={() => reject(o)} data-testid={`reject-${o.id}`}
                     variant="outline" className="flex-1 border-destructive text-destructive hover:bg-destructive hover:text-cream rounded-none uppercase text-xs tracking-widest h-9">
                     Refuser
+                  </Button>
+                )}
+                {o.status !== "new" && o.status !== "rejected" && (
+                  <Button onClick={() => reprint(o)} data-testid={`reprint-${o.id}`} variant="outline"
+                    className="rounded-none border-ink/20 h-9 px-3" title="Réimprimer le ticket">
+                    <Printer size={14} />
                   </Button>
                 )}
                 <Button onClick={() => del(o)} variant="outline" data-testid={`delete-${o.id}`}

@@ -110,11 +110,25 @@ Full-stack website for Farmacia Angelucci (branded ANGELUCCI'S) — Italian rest
 - **Checkout auto-redirect** made robust: `nav('/suivi/{id}', {replace: true})` so the back button doesn't return to the checkout page.
 
 ## Backlog / Next
-- P1: Stripe online payment (currently paiement sur place)
-- P1: Real Resend API key hookup
+- P1: Real Resend API key hookup (done)
 - P2: Notify customer by email on reject/reschedule
 - P2: Multi-language (IT/EN)
-- P2: Receipt printer integration (waiting on user for printer specs)
+- P2: Disable temporary "vitrine" mode when going fully live
+
+## Implemented (2026-02 — Star mC-Print2 CloudPRNT integration)
+- **Public CloudPRNT endpoints** (no auth, polled by the printer over HTTPS):
+  - `POST /api/cloudprnt/poll` — printer polls, responds `{jobReady, mediaTypes:["text/plain"], jobToken}` or `{jobReady:false}`.
+  - `GET  /api/cloudprnt/poll?token=…` — printer downloads job bytes (Content-Type text/plain, ESC/POS init + bold + double-size + full cut).
+  - `DELETE /api/cloudprnt/poll?token=…` — printer confirms print complete; job marked `printed`.
+- **Config URL for the printer**: `https://<domaine>/api/cloudprnt/poll` (in Star cloud → replaces the old `asiatakeaway.ch/api/cloudprnt/poll`).
+- **Trigger**: two tickets are enqueued when the admin clicks « Confirmer la commande » (status `new → preparing`). Idempotent — repeated accepts do NOT re-enqueue.
+- **Ticket format** (58 mm / 32 chars, ESC/POS via `/app/backend/printer.py`):
+  - Client ticket (payé/à payer): big centered header "FARMACIA ANGELUCCI", adresse, tél, site, numéro de commande en grand, date, type, retrait, menu, client, articles + options + notes + prix, sous-total, remise, **TOTAL en gros**, mode de paiement, message de remerciement, coupe automatique.
+  - Ticket cuisine: gros bandeau "CUISINE", numéro de commande, retrait, prénom + initiale client, type, articles en **double hauteur + largeur**, options en gras, notes préfixées `>>>`, coupe automatique. Aucun prix, aucun contact client complet.
+- **Admin UX**: bouton « Réimprimer » (icône printer, `data-testid="reprint-<id>"`) sur chaque commande `preparing/ready/done` — `POST /api/admin/orders/{id}/reprint` supprime la file pour cette commande et ré-enqueue deux tickets frais.
+- **Admin diagnostic**: `GET /api/admin/print-jobs` (owner/staff) — liste des 50 derniers jobs pour dépannage (payload exclu).
+- **Collection MongoDB** `print_jobs` : `{id, order_id, order_number, kind: client|kitchen, payload (bytes), status: pending|downloaded|printed, created_at, downloaded_at, printed_at}`.
+- **Testé bout-en-bout via curl**: POST/GET/DELETE cycle complet + idempotence (double-accept ne crée pas de doublons) + décodage ESC/POS validé (hex `1b 40 1b 61 01 1b 45 01 1d 21 11` = init + center + bold + double size).
 
 ## Implemented (2026-02 — Admin alarm + Pushover emergency + Wake Lock + mobile admin)
 - **Backend Pushover EMERGENCY** on every new order (`POST /api/orders`): priority=2, retry=30, expire=360, sound=`siren` (loud) — retries every 30 s during 6 min until acknowledged in Pushover app.
